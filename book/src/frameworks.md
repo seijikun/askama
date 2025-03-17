@@ -23,6 +23,17 @@ The crates [`thiserror`] and [`displaydoc`] can be useful to implement this erro
 [`thiserror`]: <https://crates.io/crates/thiserror>
 [`displaydoc`]: <https://crates.io/crates/displaydoc>
 
+### Simplified alternative
+
+Alternatively, you can use [`#[derive(askama_web::WebTemplate)]`](https://crates.io/crates/askama_web/)
+to automatically implement e.g. actix-web's `Responder`, axum's `IntoResponse` or warp's `Reply`.
+The library implements traits for all web-frameworks mentioned down below (and then some),
+but it does not stylize error messages.
+
+If you don't need custom / stylized error messages,
+e.g. because you know that your templates won't have rendering errors, then using
+[`askama_web`](https://crates.io/crates/askama_web/) might work for you, too.
+
 ## Actix-Web
 
 [![our actix-web example web-app](
