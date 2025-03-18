@@ -35,7 +35,7 @@
 //!
 //! assert_eq!(
 //!     Footer { year: 2025, enterprise: "<em>Askama</em> developers" }.to_string(),
-//!     "<p>© 2025 &#60;EM&#62;RINJA&#60;/EM&#62; DEVELOPERS</p>",
+//!     "<p>© 2025 &#60;EM&#62;ASKAMA&#60;/EM&#62; DEVELOPERS</p>",
 //! );
 //! // In here you see can Askama's auto-escaping. You, the developer,
 //! // can easily disable the auto-escaping with the `|safe` filter,
