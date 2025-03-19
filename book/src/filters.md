@@ -420,7 +420,7 @@ The following filters can be enabled by requesting the respective feature in the
 
 ```toml
 [dependencies]
-askama = { version = "0.11.2", features = "serde_json" }
+askama = { version = "0.12", features = ["serde_json"] }
 ```
 
 ### `json` | `tojson`
