@@ -7,8 +7,8 @@ list of all changes and improvements that might be useful to you.
 Also have a look at our blog posts that highlight some of the best features of our releases, and
 give you more in-dept explanations:
 
-* [docs.rs switching jinja template framework from tera to askama](
-  <https://blog.guillaume-gomez.fr/articles/2024-07-31+docs.rs+switching+jinja+template+framework+from+tera+to+askama>)
+* [docs.rs switching jinja template framework from tera to rinja](
+  <https://blog.guillaume-gomez.fr/articles/2024-07-31+docs.rs+switching+jinja+template+framework+from+tera+to+rinja>)
 
 ## From askama v0.12 to askama v0.13
 
