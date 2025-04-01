@@ -22,7 +22,18 @@ fn build_template(ast: &syn::DeriveInput) -> Result<String, crate::CompileError>
 // the code we want to check.
 #[track_caller]
 fn compare(jinja: &str, expected: &str, fields: &[(&str, &str)], size_hint: usize) {
-    let generated = jinja_to_rust(jinja, fields).unwrap();
+    compare_ex(jinja, expected, fields, size_hint, "")
+}
+
+#[track_caller]
+fn compare_ex(
+    jinja: &str,
+    expected: &str,
+    fields: &[(&str, &str)],
+    size_hint: usize,
+    prefix: &str,
+) {
+    let generated = jinja_to_rust(jinja, fields, prefix).unwrap();
 
     let expected: proc_macro2::TokenStream = expected.parse().unwrap();
     let expected: syn::File = syn::parse_quote! {
@@ -120,9 +131,10 @@ fn compare(jinja: &str, expected: &str, fields: &[(&str, &str)], size_hint: usiz
     }
 }
 
-fn jinja_to_rust(jinja: &str, fields: &[(&str, &str)]) -> syn::Result<syn::File> {
+fn jinja_to_rust(jinja: &str, fields: &[(&str, &str)], prefix: &str) -> syn::Result<syn::File> {
     let jinja = format!(
         r##"#[template(source = {jinja:?}, ext = "txt")]
+{prefix}
 struct Foo {{ {} }}"##,
         fields
             .iter()
@@ -1123,14 +1135,33 @@ fn test_concat() {
 fn extends_with_whitespace_control() {
     const CONTROL: &[&str] = &["", "\t", "-", "+", "~"];
 
-    let expected = jinja_to_rust(r#"front {% extends "a.html" %} back"#, &[]).unwrap();
+    let expected = jinja_to_rust(r#"front {% extends "a.html" %} back"#, &[], "").unwrap();
     let expected = unparse(&expected);
     for front in CONTROL {
         for back in CONTROL {
             let src = format!(r#"front {{%{front} extends "a.html" {back}%}} back"#);
-            let actual = jinja_to_rust(&src, &[]).unwrap();
+            let actual = jinja_to_rust(&src, &[], "").unwrap();
             let actual = unparse(&actual);
             assert_eq!(expected, actual, "source: {:?}", src);
         }
     }
+}
+
+#[test]
+fn test_with_config() {
+    // In this test we make sure that the config path is tracked.
+    compare_ex(
+        r#""#,
+        &format!(
+            "const _: &[askama::helpers::core::primitive::u8] = \
+            askama::helpers::core::include_bytes!({:#?});",
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("empty_test_config.toml")
+                .canonicalize()
+                .unwrap(),
+        ),
+        &[],
+        0,
+        r#"#[template(config = "empty_test_config.toml")]"#,
+    );
 }
