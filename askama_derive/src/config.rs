@@ -21,6 +21,7 @@ pub(crate) struct Config {
     pub(crate) default_syntax: &'static str,
     pub(crate) escapers: Vec<(Vec<Cow<'static, str>>, Cow<'static, str>)>,
     pub(crate) whitespace: Whitespace,
+    pub(crate) full_config_path: Option<PathBuf>,
     // `Config` is self referential and `_key` owns it data, so it must come last
     _key: OwnedConfigKey,
 }
@@ -40,7 +41,6 @@ struct ConfigKey<'a> {
     source: Cow<'a, str>,
     config_path: Option<Cow<'a, str>>,
     template_whitespace: Option<Whitespace>,
-    full_config_path: Option<PathBuf>,
 }
 
 impl ToOwned for ConfigKey<'_> {
@@ -54,7 +54,6 @@ impl ToOwned for ConfigKey<'_> {
                 .as_ref()
                 .map(|s| Cow::Owned(s.as_ref().to_owned())),
             template_whitespace: self.template_whitespace,
-            full_config_path: self.full_config_path.clone(),
         };
         OwnedConfigKey(Box::leak(Box::new(owned_key)))
     }
@@ -82,19 +81,14 @@ impl Config {
                 source: source.into(),
                 config_path: config_path.map(Cow::Borrowed),
                 template_whitespace,
-                full_config_path,
             },
             |key| {
-                let config = Config::new_uncached(key.to_owned(), config_span)?;
+                let config = Config::new_uncached(key.to_owned(), config_span, full_config_path)?;
                 let config = &*Box::leak(Box::new(config));
                 Ok((config._key, config))
             },
             |config| *config,
         )
-    }
-
-    pub(crate) fn full_config_path(&self) -> Option<&Path> {
-        self._key.0.full_config_path.as_deref()
     }
 }
 
@@ -102,6 +96,7 @@ impl Config {
     fn new_uncached(
         key: OwnedConfigKey,
         config_span: Option<Span>,
+        full_config_path: Option<PathBuf>,
     ) -> Result<Config, CompileError> {
         let s = key.0.source.as_ref();
         let config_path = key.0.config_path.as_deref();
@@ -180,6 +175,7 @@ impl Config {
             default_syntax,
             escapers,
             whitespace,
+            full_config_path,
             _key: key,
         })
     }

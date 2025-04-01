@@ -143,7 +143,7 @@ impl<'a, 'h> Generator<'a, 'h> {
                 };",
         );
 
-        if let Some(ref full_config_path) = self.input.config.full_config_path() {
+        if let Some(full_config_path) = &self.input.config.full_config_path {
             buf.write(format_args!(
                 "const _: &[askama::helpers::core::primitive::u8] =\
                 askama::helpers::core::include_bytes!({:?});",
