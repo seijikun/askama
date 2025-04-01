@@ -260,7 +260,7 @@ pub fn derive_template(input: TokenStream12) -> TokenStream12 {
 
 fn build_skeleton(buf: &mut Buffer, ast: &syn::DeriveInput) -> Result<usize, CompileError> {
     let template_args = TemplateArgs::fallback();
-    let config = Config::new("", None, None, None)?;
+    let config = Config::new("", None, None, None, None)?;
     let input = TemplateInput::new(ast, None, config, &template_args)?;
     let mut contexts = HashMap::default();
     let parsed = parser::Parsed::default();
@@ -315,12 +315,13 @@ fn build_template_item(
     tmpl_kind: TmplKind<'_>,
 ) -> Result<usize, CompileError> {
     let config_path = template_args.config_path();
-    let s = read_config_file(config_path, template_args.config_span)?;
+    let (s, full_config_path) = read_config_file(config_path, template_args.config_span)?;
     let config = Config::new(
         &s,
         config_path,
         template_args.whitespace,
         template_args.config_span,
+        full_config_path,
     )?;
     let input = TemplateInput::new(ast, enum_ast, config, template_args)?;
 
