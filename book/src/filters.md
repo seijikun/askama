@@ -535,6 +535,16 @@ fn main() {
 }
 ```
 
+### Runtime values
+[#runtime-values]: #runtime-values
+
+It is possible to access [runtime values](./runtime.html) in custom filters,
+if the result of the filter implements [`askama::filters::FastWritable`](./doc/askama/filters/trait.FastWritable.html):
+
+```rust
+{{#include ../../testing/tests/book_example_runtime_values_in_custom_filters.rs}}
+```
+
 ## HTML-safe types
 [#html-safe-types]: #html-safe-types
 
