@@ -1,8 +1,10 @@
+use alloc::format;
 use alloc::string::String;
+use core::convert::Infallible;
 use core::fmt::{self, Write};
 
-use super::MAX_LEN;
 use super::escape::HtmlSafeOutput;
+use super::{FastWritable, MAX_LEN};
 use crate::Result;
 
 /// Return an ephemeral `&str` for `$src: impl fmt::Display`
@@ -118,14 +120,36 @@ pub fn format() {}
 /// # }
 /// ```
 #[inline]
-pub fn linebreaks(s: impl fmt::Display) -> Result<HtmlSafeOutput<String>, fmt::Error> {
-    fn linebreaks(s: &str) -> String {
-        let linebroken = s.replace("\n\n", "</p><p>").replace('\n', "<br/>");
-        alloc::format!("<p>{linebroken}</p>")
-    }
+pub fn linebreaks<S: fmt::Display>(source: S) -> Result<HtmlSafeOutput<Linebreaks<S>>, Infallible> {
+    Ok(HtmlSafeOutput(Linebreaks(source)))
+}
 
-    let mut buffer;
-    Ok(HtmlSafeOutput(linebreaks(try_to_str!(s => buffer))))
+pub struct Linebreaks<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Linebreaks<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buffer;
+        flush_linebreaks(dest, try_to_str!(self.0 => buffer))
+    }
+}
+
+impl<S: FastWritable> FastWritable for Linebreaks<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut buffer = String::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(flush_linebreaks(dest, &buffer)?)
+    }
+}
+
+fn flush_linebreaks(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
+    let linebroken = s.replace("\n\n", "</p><p>").replace('\n', "<br/>");
+    write!(dest, "<p>{linebroken}</p>")
 }
 
 /// Converts all newlines in a piece of plain text to HTML line breaks
@@ -149,13 +173,37 @@ pub fn linebreaks(s: impl fmt::Display) -> Result<HtmlSafeOutput<String>, fmt::E
 /// # }
 /// ```
 #[inline]
-pub fn linebreaksbr(s: impl fmt::Display) -> Result<HtmlSafeOutput<String>, fmt::Error> {
-    fn linebreaksbr(s: &str) -> String {
-        s.replace('\n', "<br/>")
-    }
+pub fn linebreaksbr<S: fmt::Display>(
+    source: S,
+) -> Result<HtmlSafeOutput<Linebreaksbr<S>>, Infallible> {
+    Ok(HtmlSafeOutput(Linebreaksbr(source)))
+}
 
-    let mut buffer;
-    Ok(HtmlSafeOutput(linebreaksbr(try_to_str!(s => buffer))))
+pub struct Linebreaksbr<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Linebreaksbr<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buffer;
+        flush_linebreaksbr(dest, try_to_str!(self.0 => buffer))
+    }
+}
+
+impl<S: FastWritable> FastWritable for Linebreaksbr<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut buffer = String::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(flush_linebreaksbr(dest, &buffer)?)
+    }
+}
+
+fn flush_linebreaksbr(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
+    dest.write_str(&s.replace('\n', "<br/>"))
 }
 
 /// Replaces only paragraph breaks in plain text with appropriate HTML
@@ -183,14 +231,38 @@ pub fn linebreaksbr(s: impl fmt::Display) -> Result<HtmlSafeOutput<String>, fmt:
 /// # }
 /// ```
 #[inline]
-pub fn paragraphbreaks(s: impl fmt::Display) -> Result<HtmlSafeOutput<String>, fmt::Error> {
-    fn paragraphbreaks(s: &str) -> String {
-        let linebroken = s.replace("\n\n", "</p><p>").replace("<p></p>", "");
-        alloc::format!("<p>{linebroken}</p>")
-    }
+pub fn paragraphbreaks<S: fmt::Display>(
+    source: S,
+) -> Result<HtmlSafeOutput<Paragraphbreaks<S>>, Infallible> {
+    Ok(HtmlSafeOutput(Paragraphbreaks(source)))
+}
 
-    let mut buffer;
-    Ok(HtmlSafeOutput(paragraphbreaks(try_to_str!(s => buffer))))
+pub struct Paragraphbreaks<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Paragraphbreaks<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buffer;
+        flush_paragraphbreaks(dest, try_to_str!(self.0 => buffer))
+    }
+}
+
+impl<S: FastWritable> FastWritable for Paragraphbreaks<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut buffer = String::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(flush_paragraphbreaks(dest, &buffer)?)
+    }
+}
+
+fn flush_paragraphbreaks(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
+    let linebroken = s.replace("\n\n", "</p><p>").replace("<p></p>", "");
+    write!(dest, "<p>{linebroken}</p>")
 }
 
 /// Converts to lowercase
@@ -219,9 +291,35 @@ pub fn paragraphbreaks(s: impl fmt::Display) -> Result<HtmlSafeOutput<String>, f
 /// # }
 /// ```
 #[inline]
-pub fn lower(s: impl fmt::Display) -> Result<String, fmt::Error> {
-    let mut buffer;
-    Ok(try_to_str!(s => buffer).to_lowercase())
+pub fn lower<S: fmt::Display>(source: S) -> Result<Lower<S>, Infallible> {
+    Ok(Lower(source))
+}
+
+pub struct Lower<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Lower<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buffer;
+        flush_lower(dest, try_to_str!(self.0 => buffer))
+    }
+}
+
+impl<S: FastWritable> FastWritable for Lower<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut buffer = String::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(flush_lower(dest, &buffer)?)
+    }
+}
+
+fn flush_lower(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
+    dest.write_str(&s.to_lowercase())
 }
 
 /// Converts to lowercase, alias for the `|lower` filter
@@ -250,8 +348,8 @@ pub fn lower(s: impl fmt::Display) -> Result<String, fmt::Error> {
 /// # }
 /// ```
 #[inline]
-pub fn lowercase(s: impl fmt::Display) -> Result<String, fmt::Error> {
-    lower(s)
+pub fn lowercase<S: fmt::Display>(source: S) -> Result<Lower<S>, Infallible> {
+    lower(source)
 }
 
 /// Converts to uppercase
@@ -280,9 +378,35 @@ pub fn lowercase(s: impl fmt::Display) -> Result<String, fmt::Error> {
 /// # }
 /// ```
 #[inline]
-pub fn upper(s: impl fmt::Display) -> Result<String, fmt::Error> {
-    let mut buffer;
-    Ok(try_to_str!(s => buffer).to_uppercase())
+pub fn upper<S: fmt::Display>(source: S) -> Result<Upper<S>, Infallible> {
+    Ok(Upper(source))
+}
+
+pub struct Upper<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Upper<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buffer;
+        flush_upper(dest, try_to_str!(self.0 => buffer))
+    }
+}
+
+impl<S: FastWritable> FastWritable for Upper<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut buffer = String::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(flush_upper(dest, &buffer)?)
+    }
+}
+
+fn flush_upper(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
+    dest.write_str(&s.to_uppercase())
 }
 
 /// Converts to uppercase, alias for the `|upper` filter
@@ -311,8 +435,8 @@ pub fn upper(s: impl fmt::Display) -> Result<String, fmt::Error> {
 /// # }
 /// ```
 #[inline]
-pub fn uppercase(s: impl fmt::Display) -> Result<String, fmt::Error> {
-    upper(s)
+pub fn uppercase<S: fmt::Display>(source: S) -> Result<Upper<S>, Infallible> {
+    upper(source)
 }
 
 /// Strip leading and trailing whitespace
@@ -335,24 +459,48 @@ pub fn uppercase(s: impl fmt::Display) -> Result<String, fmt::Error> {
 /// );
 /// # }
 /// ```
-#[cfg(feature = "alloc")]
-pub fn trim<T: fmt::Display>(s: T) -> Result<String> {
-    struct Collector(String);
+#[inline]
+pub fn trim<S: fmt::Display>(source: S) -> Result<Trim<S>, Infallible> {
+    Ok(Trim(source))
+}
 
-    impl fmt::Write for Collector {
-        fn write_str(&mut self, s: &str) -> fmt::Result {
-            match self.0.is_empty() {
-                true => self.0.write_str(s.trim_start()),
-                false => self.0.write_str(s),
-            }
+pub struct Trim<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Trim<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut collector = TrimCollector(String::new());
+        write!(collector, "{}", self.0)?;
+        flush_trim(dest, collector)
+    }
+}
+
+impl<S: FastWritable> FastWritable for Trim<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut collector = TrimCollector(String::new());
+        self.0.write_into(&mut collector, values)?;
+        Ok(flush_trim(dest, collector)?)
+    }
+}
+
+struct TrimCollector(String);
+
+impl fmt::Write for TrimCollector {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        match self.0.is_empty() {
+            true => self.0.write_str(s.trim_start()),
+            false => self.0.write_str(s),
         }
     }
+}
 
-    let mut collector = Collector(String::new());
-    write!(collector, "{s}")?;
-    let Collector(mut s) = collector;
-    s.truncate(s.trim_end().len());
-    Ok(s)
+fn flush_trim(dest: &mut (impl fmt::Write + ?Sized), collector: TrimCollector) -> fmt::Result {
+    dest.write_str(collector.0.trim_end())
 }
 
 /// Indent lines with `width` spaces
@@ -376,39 +524,61 @@ pub fn trim<T: fmt::Display>(s: T) -> Result<String> {
 /// # }
 /// ```
 #[inline]
-pub fn indent(s: impl fmt::Display, width: usize) -> Result<String, fmt::Error> {
-    fn indent(args: fmt::Arguments<'_>, width: usize) -> Result<String, fmt::Error> {
-        let mut buffer = String::new();
-        let s = if width >= MAX_LEN {
-            buffer.write_fmt(args)?;
-            return Ok(buffer);
-        } else if let Some(s) = args.as_str() {
-            if s.len() >= MAX_LEN {
-                return Ok(s.into());
-            } else {
-                s
-            }
+pub fn indent<S: fmt::Display>(source: S, width: usize) -> Result<Indent<S>, Infallible> {
+    Ok(Indent { source, width })
+}
+
+pub struct Indent<S> {
+    source: S,
+    width: usize,
+}
+
+impl<S: fmt::Display> fmt::Display for Indent<S> {
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self { ref source, width } = *self;
+        if width >= MAX_LEN || width == 0 {
+            write!(dest, "{source}")
         } else {
-            buffer.write_fmt(args)?;
-            if buffer.len() >= MAX_LEN {
-                return Ok(buffer);
-            }
-            buffer.as_str()
-        };
-
-        let mut indented = String::new();
-        for (i, c) in s.char_indices() {
-            indented.push(c);
-
-            if c == '\n' && i < s.len() - 1 {
-                for _ in 0..width {
-                    indented.push(' ');
-                }
-            }
+            let mut buffer;
+            flush_indent(dest, width, try_to_str!(source => buffer))
         }
-        Ok(indented)
     }
-    indent(format_args!("{s}"), width)
+}
+
+impl<S: FastWritable> FastWritable for Indent<S> {
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let Self { ref source, width } = *self;
+        if width >= MAX_LEN || width == 0 {
+            source.write_into(dest, values)
+        } else {
+            let mut buffer = String::new();
+            source.write_into(&mut buffer, values)?;
+            Ok(flush_indent(dest, width, &buffer)?)
+        }
+    }
+}
+
+fn flush_indent(dest: &mut (impl fmt::Write + ?Sized), width: usize, s: &str) -> fmt::Result {
+    if s.len() >= MAX_LEN {
+        return dest.write_str(s);
+    }
+
+    let mut prefix = String::new();
+    for (idx, line) in s.split_inclusive('\n').enumerate() {
+        if idx > 0 {
+            // only allocate prefix if needed, i.e. not for single-line outputs
+            if prefix.is_empty() {
+                prefix = format!("{: >1$}", "", width);
+            }
+            dest.write_str(&prefix)?;
+        }
+        dest.write_str(line)?;
+    }
+    Ok(())
 }
 
 /// Capitalize a value. The first character will be uppercase, all others lowercase.
@@ -437,21 +607,45 @@ pub fn indent(s: impl fmt::Display, width: usize) -> Result<String, fmt::Error> 
 /// # }
 /// ```
 #[inline]
-pub fn capitalize(s: impl fmt::Display) -> Result<String, fmt::Error> {
-    fn capitalize(s: &str) -> Result<String, fmt::Error> {
-        let mut chars = s.chars();
-        if let Some(c) = chars.next() {
-            let mut replacement = String::with_capacity(s.len());
-            replacement.extend(c.to_uppercase());
-            replacement.push_str(&chars.as_str().to_lowercase());
-            Ok(replacement)
-        } else {
-            Ok(String::new())
-        }
-    }
+pub fn capitalize<S: fmt::Display>(source: S) -> Result<Capitalize<S>, Infallible> {
+    Ok(Capitalize(source))
+}
 
-    let mut buffer;
-    capitalize(try_to_str!(s => buffer))
+pub struct Capitalize<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Capitalize<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buffer;
+        flush_capitalize(dest, try_to_str!(self.0 => buffer))
+    }
+}
+
+impl<S: FastWritable> FastWritable for Capitalize<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut buffer = String::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(flush_capitalize(dest, &buffer)?)
+    }
+}
+
+fn flush_capitalize(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
+    let mut chars = s.chars();
+    if let Some(c) = chars.next() {
+        write!(
+            dest,
+            "{}{}",
+            c.to_uppercase(),
+            chars.as_str().to_lowercase()
+        )
+    } else {
+        Ok(())
+    }
 }
 
 /// Count the words in that string.
@@ -500,32 +694,39 @@ pub fn wordcount(s: impl fmt::Display) -> Result<usize, fmt::Error> {
 /// );
 /// # }
 /// ```
-pub fn title(s: impl fmt::Display) -> Result<String, fmt::Error> {
-    let mut buffer;
-    let s = try_to_str!(s => buffer);
-    let mut need_capitalization = true;
+#[inline]
+pub fn title<S: fmt::Display>(source: S) -> Result<Title<S>, Infallible> {
+    Ok(Title(source))
+}
 
-    // Sadly enough, we can't mutate a string when iterating over its chars, likely because it could
-    // change the size of a char, "breaking" the char indices.
-    let mut output = String::with_capacity(s.len());
-    for c in s.chars() {
-        if c.is_whitespace() {
-            output.push(c);
-            need_capitalization = true;
-        } else if need_capitalization {
-            match c.is_uppercase() {
-                true => output.push(c),
-                false => output.extend(c.to_uppercase()),
-            }
-            need_capitalization = false;
-        } else {
-            match c.is_lowercase() {
-                true => output.push(c),
-                false => output.extend(c.to_lowercase()),
-            }
-        }
+pub struct Title<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Title<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut buffer;
+        flush_title(dest, try_to_str!(self.0 => buffer))
     }
-    Ok(output)
+}
+
+impl<S: FastWritable> FastWritable for Title<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut buffer = String::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(flush_title(dest, &buffer)?)
+    }
+}
+
+fn flush_title(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
+    for word in s.split_inclusive(char::is_whitespace) {
+        flush_capitalize(dest, word)?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -639,14 +840,21 @@ mod tests {
 
     #[test]
     fn test_title() {
-        assert_eq!(&title("").unwrap(), "");
-        assert_eq!(&title(" \n\t").unwrap(), " \n\t");
-        assert_eq!(&title("foo").unwrap(), "Foo");
-        assert_eq!(&title(" foo").unwrap(), " Foo");
-        assert_eq!(&title("foo bar").unwrap(), "Foo Bar");
-        assert_eq!(&title("foo  bar ").unwrap(), "Foo  Bar ");
-        assert_eq!(&title("fOO").unwrap(), "Foo");
-        assert_eq!(&title("fOo BaR").unwrap(), "Foo Bar");
+        assert_eq!(&title("").unwrap().to_string(), "");
+        assert_eq!(&title(" \n\t").unwrap().to_string(), " \n\t");
+        assert_eq!(&title("foo").unwrap().to_string(), "Foo");
+        assert_eq!(&title(" foo").unwrap().to_string(), " Foo");
+        assert_eq!(&title("foo bar").unwrap().to_string(), "Foo Bar");
+        assert_eq!(&title("foo  bar ").unwrap().to_string(), "Foo  Bar ");
+        assert_eq!(&title("fOO").unwrap().to_string(), "Foo");
+        assert_eq!(&title("fOo BaR").unwrap().to_string(), "Foo Bar");
+        assert_eq!(&title("foo\r\nbar").unwrap().to_string(), "Foo\r\nBar");
+        assert_eq!(
+            &title("Fo\x0boo\x0coO\u{2002}OO\u{3000}baR")
+                .unwrap()
+                .to_string(),
+            "Fo\x0bOo\x0cOo\u{2002}Oo\u{3000}Bar"
+        );
     }
 
     #[test]
