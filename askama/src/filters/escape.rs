@@ -254,10 +254,14 @@ impl<'a, T: HtmlSafe + ?Sized> AutoEscape for &AutoEscaper<'a, T, Html> {
 ///
 /// ```rust
 /// mod filters {
-///     use askama::{filters::MaybeSafe, Result};
+///     use askama::{filters::MaybeSafe, Result, Values};
 ///
 ///     // Do not actually use this filter! It's an intentionally bad example.
-///     pub fn backdoor<T: std::fmt::Display>(s: T, enable: &bool) -> Result<MaybeSafe<T>> {
+///     pub fn backdoor<T: std::fmt::Display>(
+///         s: T,
+///         _: &dyn Values,
+///         enable: &bool,
+///     ) -> Result<MaybeSafe<T>> {
 ///         Ok(match *enable {
 ///             true => MaybeSafe::Safe(s),
 ///             false => MaybeSafe::NeedsEscaping(s),
@@ -380,10 +384,10 @@ const _: () = {
 ///
 /// ```rust
 /// mod filters {
-///     use askama::{filters::Safe, Result};
+///     use askama::{filters::Safe, Result, Values};
 ///
 ///     // Do not actually use this filter! It's an intentionally bad example.
-///     pub fn strip_except_apos(s: impl ToString) -> Result<Safe<String>> {
+///     pub fn strip_except_apos(s: impl ToString, _: &dyn Values) -> Result<Safe<String>> {
 ///         Ok(Safe(s
 ///             .to_string()
 ///             .chars()

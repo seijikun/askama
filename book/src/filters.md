@@ -467,17 +467,20 @@ Prefix with two &nbsp; characters:
 
 To define your own filters, simply have a module named `filters` in scope of the context deriving a `Template` impl 
 and define the filters as functions within this module. 
-The functions must have at least one argument and the return type must be `askama::Result<T>`.
+The functions must have at least two arguments and the return type must be `askama::Result<T>`.
 Although there are no restrictions on `T` for a single filter, 
 the final result of a chain of filters must implement `Display`. 
 
-The arguments to the filters are passed as follows. 
-The first argument corresponds to the expression they are applied to. 
-Subsequent arguments, if any, must be given directly when calling the filter. 
-The first argument may or may not be a reference, depending on the context in which the filter is called. 
+The arguments to the filters are passed as follows:
+* The first argument corresponds to the expression they are applied to.
+* The second argument are the [runtime values](./runtime.html):
+  [`values: &dyn askama::Values`](./doc/askama/trait.Values.html).
+* Subsequent arguments, if any, must be given directly when calling the filter.
+  The first argument may or may not be a reference, depending on the context in which the filter is called.
+
 To abstract over ownership, consider defining your argument as a trait bound.
 For example, the `trim` built-in filter accepts any value implementing `Display`. 
-Its signature is similar to `fn trim(s: impl std::fmt::Display) -> askama::Result<String>`.
+Its signature is similar to `fn trim(s: impl std::fmt::Display, values: &dyn askama::Values) -> askama::Result<String>`.
 
 Note that built-in filters have preference over custom filters, so, in case of name collision, the built-in filter is applied.
 
@@ -496,7 +499,10 @@ struct MyFilterTemplate<'a> {
 // Any filter defined in the module `filters` is accessible in your template.
 mod filters {
     // This filter does not have extra arguments
-    pub fn myfilter<T: std::fmt::Display>(s: T) -> askama::Result<String> {
+    pub fn myfilter<T: std::fmt::Display>(
+        s: T,
+        _: &dyn askama::Values,
+    ) -> askama::Result<String> {
         let s = s.to_string();
         Ok(s.replace("oo", "aa"))
     }
@@ -521,7 +527,11 @@ struct MyFilterTemplate<'a> {
 // Any filter defined in the module `filters` is accessible in your template.
 mod filters {
     // This filter requires a `usize` input when called in templates
-    pub fn myfilter<T: std::fmt::Display>(s: T, n: usize) -> askama::Result<String> {
+    pub fn myfilter<T: std::fmt::Display>(
+        s: T,
+        _: &dyn askama::Values,
+        n: usize,
+    ) -> askama::Result<String> {
         let s = s.to_string();
         let mut replace = String::with_capacity(n);
         replace.extend((0..n).map(|_| "a"));
@@ -538,8 +548,7 @@ fn main() {
 ### Runtime values
 [#runtime-values]: #runtime-values
 
-It is possible to access [runtime values](./runtime.html) in custom filters,
-if the result of the filter implements [`askama::filters::FastWritable`](./doc/askama/filters/trait.FastWritable.html):
+It is possible to access [runtime values](./runtime.html) in custom filters:
 
 ```rust
 {{#include ../../testing/tests/book_example_runtime_values_in_custom_filters.rs}}

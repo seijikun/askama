@@ -296,7 +296,12 @@ impl<'a> Generator<'a, '_> {
         buf.write(format_args!("filters::{name}"));
         self.visit_call_generics(buf, generics);
         buf.write('(');
-        self._visit_args(ctx, buf, args)?;
+        self._visit_arg(ctx, buf, &args[0])?;
+        buf.write(",__askama_values");
+        if args.len() > 1 {
+            buf.write(',');
+            self._visit_args(ctx, buf, &args[1..])?;
+        }
         buf.write(")?");
         Ok(DisplayWrap::Unwrapped)
     }
