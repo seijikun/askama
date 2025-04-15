@@ -268,6 +268,7 @@ impl<'a> Generator<'a, '_> {
             "urlencode" => Self::_visit_urlencode_filter,
             "urlencode_strict" => Self::_visit_urlencode_strict_filter,
             "value" => return self._visit_value(ctx, buf, args, generics, node, "`value` filter"),
+            "wordcount" => Self::_visit_wordcount_filter,
             name if BUILTIN_FILTERS.contains(&name) => {
                 return self._visit_builtin_filter(ctx, buf, name, args, generics, node);
             }
@@ -363,6 +364,37 @@ impl<'a> Generator<'a, '_> {
         ));
         self._visit_args(ctx, buf, args)?;
         buf.write(")?)");
+        Ok(DisplayWrap::Unwrapped)
+    }
+
+    fn _visit_wordcount_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'_, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        ensure_filter_has_feature_alloc(ctx, "wordcount", node)?;
+        if args.len() != 1 {
+            return Err(ctx.generate_error(
+                format_args!("unexpected argument(s) in `wordcount` filter"),
+                node,
+            ));
+        }
+
+        buf.write("match askama::filters::wordcount(&(");
+        self._visit_args(ctx, buf, args)?;
+        buf.write(
+            ")) {\
+                expr0 => {\
+                    (&&&askama::filters::Writable(&expr0)).\
+                        askama_write(&mut askama::helpers::Empty, __askama_values)?;\
+                    expr0.into_count()\
+                }\
+            }\
+        ",
+        );
+
         Ok(DisplayWrap::Unwrapped)
     }
 

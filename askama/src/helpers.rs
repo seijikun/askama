@@ -251,6 +251,18 @@ impl FastWritable for Empty {
     }
 }
 
+impl fmt::Write for Empty {
+    #[inline]
+    fn write_str(&mut self, _: &str) -> fmt::Result {
+        Ok(())
+    }
+
+    #[inline]
+    fn write_char(&mut self, _: char) -> fmt::Result {
+        Ok(())
+    }
+}
+
 #[inline]
 pub fn as_bool<T: PrimitiveType<Value = bool>>(value: T) -> bool {
     value.get()

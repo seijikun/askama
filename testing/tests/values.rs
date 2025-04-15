@@ -134,3 +134,25 @@ fn test_value_in_subtemplates_with_filters() {
         "Hello, &#38;#60;WORLD&#38;#62;!", // sic: escaped twice
     );
 }
+
+#[test]
+fn test_value_in_wordcount() {
+    // This test makes sure that `|wordcount` has has access to runtime values.
+
+    #[derive(Template)]
+    #[template(source = r#"{{ Child|wordcount }}"#, ext = "html")]
+    struct Parent;
+
+    #[derive(Template)]
+    #[template(
+        source = r#"{{ askama::get_value::<&str>("sentence")? }}"#,
+        ext = "html"
+    )]
+    struct Child;
+
+    let values: (&str, &dyn Any) = (
+        "sentence",
+        &"In simple terms, a sentence is a set of words.",
+    );
+    assert_eq!(Parent.render_with_values(&values).unwrap(), "10");
+}
