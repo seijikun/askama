@@ -99,11 +99,14 @@ fn filter_fmt() {
 }
 
 mod filters {
-    pub fn myfilter(s: &str) -> ::askama::Result<String> {
+    use askama::Values;
+
+    pub fn myfilter(s: &str, _: &dyn Values) -> ::askama::Result<String> {
         Ok(s.replace("oo", "aa"))
     }
+
     // for test_nested_filter_ref
-    pub fn mytrim(s: &dyn (::std::fmt::Display)) -> ::askama::Result<String> {
+    pub fn mytrim(s: &dyn std::fmt::Display, _: &dyn Values) -> ::askama::Result<String> {
         Ok(s.to_string().trim().to_owned())
     }
 }
