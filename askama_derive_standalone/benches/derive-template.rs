@@ -1,30 +1,37 @@
-use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
+use criterion::{BatchSize, Criterion, Throughput, criterion_group, criterion_main};
 use quote::quote;
 
 criterion_main!(benches);
 criterion_group!(benches, hello_world, librustdoc);
 
 fn hello_world(c: &mut Criterion) {
+    let source = "<html><body><h1>Hello, {{user}}!</h1></body></html>";
     let ts = quote! {
         #[derive(Template)]
         #[template(
-            source = "<html><body><h1>Hello, {{user}}!</h1></body></html>",
+            source = #source,
             ext = "html"
         )]
         struct Hello<'a> {
             user: &'a str,
         }
     };
-    c.bench_function("hello_world", |b| {
+
+    let mut g = c.benchmark_group("synthetic");
+    g.throughput(Throughput::Bytes(source.len().try_into().unwrap()));
+    g.bench_function("hello_world", |b| {
         b.iter_batched(
             || ts.clone(),
             askama_derive_standalone::derive_template,
             BatchSize::LargeInput,
         );
     });
+    g.finish();
 }
 
 fn librustdoc(c: &mut Criterion) {
+    let mut g = c.benchmark_group("librustdoc");
+
     macro_rules! benches {
         ($($name:expr => $struct:item)*) => { $({
             const SOURCE: &str =
@@ -35,7 +42,8 @@ fn librustdoc(c: &mut Criterion) {
                 #[template(source = #SOURCE, ext = "html")]
                 $struct
             };
-            c.bench_function($name, |b| {
+            g.throughput(Throughput::Bytes(SOURCE.len().try_into().unwrap()));
+            g.bench_function($name, |b| {
                 b.iter_batched(
                     || ts.clone(),
                     askama_derive_standalone::derive_template,
@@ -133,4 +141,5 @@ fn librustdoc(c: &mut Criterion) {
             size: u64,
         }
     }
+    g.finish();
 }
