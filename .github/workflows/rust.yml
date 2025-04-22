@@ -206,8 +206,8 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --all-targets --features full
-      - run: cargo test --all-targets --features full
+      - run: cargo test --all-features
+      - run: cargo test --all-targets --all-features
 
   Package:
     needs: ["Rustfmt", "Docs", "Audit", "Book", "Typos", "Jinja2-Assumptions", "DevSkim", "CargoSort"]
@@ -227,7 +227,7 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cd ${{ matrix.package }} && cargo build --all-targets
+      - run: cd ${{ matrix.package }} && cargo test
       - run: cd ${{ matrix.package }} && cargo test --all-targets
       - run: cd ${{ matrix.package }} && cargo clippy --all-targets -- -D warnings
 
