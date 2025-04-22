@@ -4,18 +4,27 @@ This file **only lists breaking changes** you need to be aware of when you upgra
 version. Please see [our release notes](<https://github.com/askama-rs/askama/releases>) to get a
 list of all changes and improvements that might be useful to you.
 
-Also have a look at our blog posts that highlight some of the best features of our releases, and
-give you more in-dept explanations:
+## From askama v0.13 to askama v0.14
 
-* [docs.rs switching jinja template framework from tera to rinja](
-  <https://blog.guillaume-gomez.fr/articles/2024-07-31+docs.rs+switching+jinja+template+framework+from+tera+to+rinja>)
+* The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.83.
+
+* When assigning a new variable (`{% let var = … %}`) with a local variable was value,
+  it is moved or copied, not referenced.
+
+* Try expressions (`{{ expr? }}`) are not placed behind a reference.
+
+* [`FastWritable`](./doc/askama/trait.FastWritable.html) implementations have access to runtime values.
+
+* Custom filters have access to runtime values.
+
+* `|unique` is a built-in filter; `|titlecase` is an alias for `|title`.
 
 ## From askama v0.12 to askama v0.13
 
 A blog post summarizing changes and also explaining the merge of `rinja` and `askama` is
 available [here](https://blog.guillaume-gomez.fr/articles/2025-03-19+Askama+and+Rinja+merge).
 
-List of the changes:
+List of breaking changes:
 
 * The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.81.
 
@@ -92,6 +101,10 @@ List of the changes:
 * You should be able to upgrade to v0.3 without changes.
 
 ## From askama v0.12 to rinja v0.2
+
+Have a look at our blog posts that highlight some of the best features of our releases, and
+give you more in-dept explanations: [docs.rs switching jinja template framework from tera to rinja](
+  <https://blog.guillaume-gomez.fr/articles/2024-07-31+docs.rs+switching+jinja+template+framework+from+tera+to+rinja>).
 
 * The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.71.
 
