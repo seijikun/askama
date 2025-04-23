@@ -39,7 +39,7 @@ First, add the following to your crate's `Cargo.toml`:
 
 ```toml
 # in [dependencies] section
-askama = "0.13.0"
+askama = "0.14.0"
 ```
 
 Now create a directory called `templates` in your crate root.
