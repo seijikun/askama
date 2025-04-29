@@ -161,6 +161,7 @@ pub trait Template: fmt::Display + FastWritable {
         }
 
         impl<W: io::Write> fmt::Write for Wrapped<W> {
+            #[inline]
             fn write_str(&mut self, s: &str) -> fmt::Result {
                 if let Err(err) = self.writer.write_all(s.as_bytes()) {
                     self.err = Some(err);
@@ -286,6 +287,7 @@ impl<T: Template> DynTemplate for T {
         <Self as Template>::render(self)
     }
 
+    #[inline]
     #[cfg(feature = "alloc")]
     fn dyn_render_with_values(&self, values: &dyn Values) -> Result<String> {
         <Self as Template>::render_with_values(self, values)
@@ -296,6 +298,7 @@ impl<T: Template> DynTemplate for T {
         <Self as Template>::render_into(self, writer)
     }
 
+    #[inline]
     fn dyn_render_into_with_values(
         &self,
         writer: &mut dyn fmt::Write,
@@ -304,6 +307,7 @@ impl<T: Template> DynTemplate for T {
         <Self as Template>::render_into_with_values(self, writer, values)
     }
 
+    #[inline]
     #[cfg(feature = "std")]
     fn dyn_write_into(&self, writer: &mut dyn io::Write) -> io::Result<()> {
         <Self as Template>::write_into(self, writer)
@@ -513,6 +517,7 @@ const _: () = {
     }
 
     impl FastWritable for fmt::Arguments<'_> {
+        #[inline]
         fn write_into<W: fmt::Write + ?Sized>(
             &self,
             dest: &mut W,
