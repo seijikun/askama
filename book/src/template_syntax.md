@@ -308,7 +308,7 @@ struct MyTemplate {
 ## Calling functions
 
 If you only provide a function name, askama will assume it's a method. If
-you want to call a method, you will need to use a path instead:
+you want to call a function, you will need to use a path instead:
 
 ```jinja
 {# This is the equivalent of `self.method()`. #}
