@@ -12,41 +12,11 @@ permissions: {}
 
 jobs:
 ####################################################################################################
-# STEP 0: CHECK CI CONFIGURATION
-# ["Zizmor"]
-####################################################################################################
-
-  Zizmor:
-    runs-on: ubuntu-latest
-    permissions:
-      security-events: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: zizmor@1
-
-      - name: Run zizmor
-        run: zizmor --format sarif . > results.sarif
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
-
-      - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: results.sarif
-          category: zizmor
-
-####################################################################################################
 # STEP 1: FASTEST
 # ["Rustfmt", "Docs", "Audit", "Book", "Typos", "Jinja2-Assumptions", "DevSkim", "CargoSort"]
 ####################################################################################################
 
   Rustfmt:
-    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       # No need to test `askama_derive_standalone`. It has same the `src` folder as `askama_derive`.
@@ -72,7 +42,6 @@ jobs:
           done
 
   Docs:
-    needs: ["Zizmor"]
     strategy:
       matrix:
         package: [askama, askama_derive, askama_parser]
@@ -88,7 +57,6 @@ jobs:
           RUSTDOCFLAGS: -Z unstable-options --generate-link-to-definition --cfg=docsrs -D warnings
 
   Audit:
-    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -97,7 +65,6 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   Book:
-    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -115,7 +82,6 @@ jobs:
         working-directory: book
 
   Typos:
-    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -124,7 +90,6 @@ jobs:
       - uses: crate-ci/typos@master
 
   Jinja2-Assumptions:
-    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -137,7 +102,6 @@ jobs:
       - run: testing/jinja2-assumptions/test.sh
 
   DevSkim:
-    needs: ["Zizmor"]
     name: DevSkim
     runs-on: ubuntu-latest
     permissions:
@@ -158,7 +122,6 @@ jobs:
           sarif_file: devskim-results.sarif
 
   CargoSort:
-    needs: ["Zizmor"]
     name: Check order in Cargo.toml
     runs-on: ubuntu-latest
     steps:
