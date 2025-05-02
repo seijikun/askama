@@ -896,7 +896,7 @@ fn ensure_no_named_arguments(
     node: Span<'_>,
 ) -> Result<(), CompileError> {
     for arg in args {
-        if is_argument_placeholder(arg) {
+        if let Expr::NamedArgument(..) = &**arg {
             return Err(ctx.generate_error(
                 format_args!(
                     "`{}` filter cannot accept named arguments",
