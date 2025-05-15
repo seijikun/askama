@@ -8,6 +8,7 @@ use rocket::response::{Redirect, Responder};
 use rocket::{Config, Request, Response, catch, catchers, get, routes};
 
 #[rocket::main]
+#[allow(clippy::result_large_err)] // needs to be fixed by rocket, not us
 async fn main() -> Result<(), Error> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
 
