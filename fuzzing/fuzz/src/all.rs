@@ -72,6 +72,7 @@ macro_rules! this_file {
     };
 }
 
+// ADD NEW ENTRIES AT THE BOTTOM!
 this_file! {
     crate::filters::Filters;
     crate::html::Html;

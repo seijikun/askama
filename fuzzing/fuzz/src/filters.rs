@@ -3,9 +3,15 @@ use std::fmt;
 use arbitrary::{Arbitrary, Unstructured};
 use askama::filters::{self, AsIndent};
 
-#[derive(Arbitrary, Debug, Clone, Copy)]
+// ADD NEW ENTRIES AT THE BOTTOM!
+#[derive(Arbitrary, Debug, Clone)]
 pub enum Scenario<'a> {
     Text(Text<'a>),
+    Join(Vec<&'a str>, &'a str),
+    Unique(Vec<&'a str>),
+    Wordcount(&'a str),
+    // TODO: fmt
+    // TODO: format
 }
 
 impl<'a> super::Scenario<'a> for Scenario<'a> {
@@ -16,9 +22,22 @@ impl<'a> super::Scenario<'a> for Scenario<'a> {
     }
 
     fn run(&self) -> Result<(), Self::RunError> {
-        match *self {
-            Self::Text(text) => run_text(text),
+        match self {
+            &Scenario::Text(text) => run_text(text)?,
+            Scenario::Join(input, separator) => {
+                let _ = filters::join(input, separator)?.to_string();
+            }
+            Scenario::Unique(items) => {
+                let _ = filters::unique(items)?.collect::<Vec<_>>();
+            }
+            Scenario::Wordcount(input) => {
+                let c = filters::wordcount(input);
+                let _ = c.to_string();
+                let _ = c.into_count();
+                return Ok(());
+            }
         }
+        Ok(())
     }
 }
 
@@ -36,24 +55,25 @@ fn run_text(filter: Text<'_>) -> Result<(), askama::Error> {
         TextFilter::LinebreaksBr => filters::linebreaksbr(input)?.to_string(),
         TextFilter::Lowercase => filters::lowercase(input)?.to_string(),
         TextFilter::ParagraphBreaks => filters::paragraphbreaks(input)?.to_string(),
-        TextFilter::Safe(e) => match e {
-            Escaper::Html => filters::safe(input, filters::Html)?.to_string(),
-            Escaper::Text => filters::safe(input, filters::Text)?.to_string(),
-        },
+        TextFilter::Safe(e) => filters::safe(input, e)?.to_string(),
         TextFilter::Title => filters::title(input)?.to_string(),
         TextFilter::Trim => filters::trim(input)?.to_string(),
         TextFilter::Truncate(a) => filters::truncate(input, a)?.to_string(),
         TextFilter::Uppercase => filters::uppercase(input)?.to_string(),
         TextFilter::Urlencode => filters::urlencode(input)?.to_string(),
         TextFilter::UrlencodeStrict => filters::urlencode_strict(input)?.to_string(),
+        TextFilter::Escape(escaper) => filters::escape(input, escaper)?.to_string(),
+        TextFilter::Filesizeformat(size) => filters::filesizeformat(size)?.to_string(),
+        TextFilter::Json => filters::json(input)?.to_string(),
+        TextFilter::JsonPretty(prefix) => filters::json_pretty(input, prefix)?.to_string(),
     };
     Ok(())
 }
 
-impl fmt::Display for Scenario<'_> {
+impl fmt::Display for Text<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Scenario::Text(Text { input, filter }) = self;
-        let text = match filter {
+        let Text { input, filter } = *self;
+        let content = match filter {
             TextFilter::Capitalize => format!("capitalize({input:?})"),
             TextFilter::Center(a) => format!("center({input:?}, {a:?})"),
             TextFilter::Indent {
@@ -67,16 +87,17 @@ impl fmt::Display for Scenario<'_> {
             TextFilter::LinebreaksBr => format!("linebreaksbr({input:?})"),
             TextFilter::Lowercase => format!("lowercase({input:?})"),
             TextFilter::ParagraphBreaks => format!("paragraphbreaks({input:?})"),
-            TextFilter::Safe(e) => match e {
-                Escaper::Html => format!("safe({input:?}, filters::Html)"),
-                Escaper::Text => format!("safe({input:?}, filters::Text)"),
-            },
+            TextFilter::Safe(e) => format!("safe({input:?}, {e})"),
             TextFilter::Title => format!("title({input:?})"),
             TextFilter::Trim => format!("trim({input:?})"),
             TextFilter::Truncate(a) => format!("truncate({input:?}, {a:?})"),
             TextFilter::Uppercase => format!("uppercase({input:?})"),
             TextFilter::Urlencode => format!("urlencode({input:?})"),
             TextFilter::UrlencodeStrict => format!("urlencode_strict({input:?})"),
+            TextFilter::Escape(e) => format!("escape({input:?}, {e})"),
+            TextFilter::Filesizeformat(size) => format!("filesizeformat({size:?})"),
+            TextFilter::Json => format!("json({input:?})"),
+            TextFilter::JsonPretty(prefix) => format!("json_pretty({input:?}, {prefix})"),
         };
         write!(
             f,
@@ -84,8 +105,42 @@ impl fmt::Display for Scenario<'_> {
 use askama::filters;
 
 #[test]
-fn test() {{
-    let _: String = filters::{text}?.to_string();
+fn test() -> askama::Result<()> {{
+    let _: String = filters::{content}?.to_string();
+    Ok(())
+}}\
+            ",
+        )
+    }
+}
+
+impl fmt::Display for Scenario<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let content = match self {
+            Scenario::Text(text) => return text.fmt(f),
+            Scenario::Join(items, separator) => {
+                format!("    let _: String = filters::join({items:?}, {separator:?})?.to_string();")
+            }
+            Scenario::Unique(items) => {
+                format!("    let _: Vec<_> = filters::unique({items:?})?.count();")
+            }
+            &Scenario::Wordcount(input) => format!(
+                "\
+    let mut c = filters::wordcount({input:?});
+    let _: String = c.to_string();
+    let _: usize = c.into_count();\
+                ",
+            ),
+        };
+        write!(
+            f,
+            "\
+use askama::filters;
+
+#[test]
+fn test() -> askama::Result<()> {{
+    {content}
+    Ok(())
 }}\
             ",
         )
@@ -98,6 +153,7 @@ pub struct Text<'a> {
     filter: TextFilter<'a>,
 }
 
+// ADD NEW ENTRIES AT THE BOTTOM!
 #[derive(Arbitrary, Debug, Clone, Copy)]
 enum TextFilter<'a> {
     Capitalize,
@@ -118,6 +174,10 @@ enum TextFilter<'a> {
     Uppercase,
     Urlencode,
     UrlencodeStrict,
+    Escape(Escaper),
+    Filesizeformat(f32),
+    Json,
+    JsonPretty(Prefix<'a>),
 }
 
 #[derive(Arbitrary, Debug, Clone, Copy)]
@@ -150,15 +210,27 @@ enum Escaper {
     Text,
 }
 
-// TODO:
-// abs
-// escape,
-// filesizeformat
-// fmt
-// format
-// into_f64
-// into_isize
-// join
-// json
-// json_pretty
-// wordcount
+impl fmt::Display for Escaper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Html => "Html",
+            Self::Text => "Text",
+        })
+    }
+}
+
+impl filters::Escaper for Escaper {
+    fn write_escaped_str<W: fmt::Write>(&self, dest: W, string: &str) -> fmt::Result {
+        match self {
+            Escaper::Html => filters::Html.write_escaped_str(dest, string),
+            Escaper::Text => filters::Text.write_escaped_str(dest, string),
+        }
+    }
+
+    fn write_escaped_char<W: fmt::Write>(&self, dest: W, c: char) -> fmt::Result {
+        match self {
+            Escaper::Html => filters::Html.write_escaped_char(dest, c),
+            Escaper::Text => filters::Text.write_escaped_char(dest, c),
+        }
+    }
+}
