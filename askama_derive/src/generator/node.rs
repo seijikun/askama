@@ -748,7 +748,7 @@ impl<'a> Generator<'a, '_> {
                         // We need to normalize the arg to write it, thus we need to add it to
                         // locals in the normalized manner
                         let normalized_arg = normalize_identifier(arg);
-                        buf.write(format_args!("let {} = {before}{value}{after};", normalized_arg));
+                        buf.write(format_args!("let {normalized_arg} = {before}{value}{after};"));
                         this.locals.insert_with_default(Cow::Borrowed(normalized_arg));
                     }
                 }

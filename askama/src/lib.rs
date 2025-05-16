@@ -177,7 +177,7 @@ pub trait Template: fmt::Display + FastWritable {
             Ok(())
         } else {
             let err = wrapped.err.take();
-            Err(err.unwrap_or_else(|| io::Error::new(io::ErrorKind::Other, fmt::Error)))
+            Err(err.unwrap_or_else(|| io::Error::other(fmt::Error)))
         }
     }
 
