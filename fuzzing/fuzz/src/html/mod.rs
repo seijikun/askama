@@ -6,6 +6,7 @@ use std::fmt;
 use arbitrary::{Arbitrary, Unstructured};
 use html_escape::decode_html_entities_to_string;
 
+// ADD NEW ENTRIES AT THE BOTTOM!
 #[derive(Arbitrary, Debug, Clone, Copy)]
 pub enum Scenario<'a> {
     String(&'a str),
