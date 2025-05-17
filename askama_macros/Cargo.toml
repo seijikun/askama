@@ -17,8 +17,12 @@ rustdoc-args = ["--generate-link-to-definition", "--cfg=docsrs"]
 [lib]
 proc-macro = true
 
-[dependencies]
-askama_derive = { package = "askama_derive", version = "=0.14.0", path = "../askama_derive", default-features = false, features = ["proc-macro"] }
+[dependencies.askama_derive]
+package = "askama_derive"
+path = "../askama_derive"
+version = "=0.14.0"
+default-features = false
+features = ["external-sources", "proc-macro"]
 
 [features]
 default = ["config", "derive", "std", "urlencode"]
