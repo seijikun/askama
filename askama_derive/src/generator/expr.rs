@@ -369,7 +369,7 @@ impl<'a> Generator<'a, '_> {
                     buf.write("_loop_item.index");
                     return Ok(DisplayWrap::Unwrapped);
                 } else if attr.name == "first" {
-                    buf.write("_loop_item.first");
+                    buf.write("(_loop_item.index == 0)");
                     return Ok(DisplayWrap::Unwrapped);
                 } else if attr.name == "last" {
                     buf.write("_loop_item.last");

@@ -48,7 +48,6 @@ where
                 item,
                 LoopItem {
                     index,
-                    first: index == 0,
                     last: self.iter.peek().is_none(),
                 },
             )
@@ -59,7 +58,6 @@ where
 #[derive(Copy, Clone)]
 pub struct LoopItem {
     pub index: usize,
-    pub first: bool,
     pub last: bool,
 }
 
