@@ -4,6 +4,7 @@
 
 pub mod all;
 mod ascii_str;
+pub mod derive;
 pub mod filters;
 pub mod html;
 pub mod parser;
@@ -13,6 +14,9 @@ use std::fmt;
 
 pub const TARGETS: &[(&str, TargetBuilder)] = &[
     ("all", |data| NamedTarget::new::<all::Scenario<'_>>(data)),
+    ("derive", |data| {
+        NamedTarget::new::<derive::Scenario<'_>>(data)
+    }),
     ("filters", |data| {
         NamedTarget::new::<filters::Scenario<'_>>(data)
     }),

@@ -162,6 +162,7 @@ impl<'a, 'h> Generator<'a, 'h> {
         for path in paths {
             // Skip the fake path of templates defined in rust source.
             let path_is_valid = match self.input.source {
+                #[cfg(feature = "external-sources")]
                 Source::Path(_) => true,
                 Source::Source(_) => path != &*self.input.path,
             };

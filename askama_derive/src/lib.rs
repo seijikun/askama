@@ -39,7 +39,11 @@ use crate::heritage::{Context, Heritage};
 use crate::input::{AnyTemplateArgs, Print, TemplateArgs, TemplateInput};
 use crate::integration::{Buffer, build_template_enum};
 
+/// [`true`] if and only if [`crate`] is compiled with feature `"external-sources"`.
+pub const CAN_USE_EXTERNAL_SOURCES: bool = cfg!(feature = "external-sources");
+
 #[macro_export]
+#[cfg(feature = "proc-macro")]
 macro_rules! make_derive_template {
     (
         $(#[$meta:meta])*
