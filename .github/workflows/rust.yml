@@ -216,6 +216,7 @@ jobs:
       matrix:
         fuzz_target:
           - all
+          - derive
           - filters
           - html
           - parser
