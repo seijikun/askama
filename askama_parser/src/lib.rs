@@ -476,7 +476,7 @@ fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
         }
     };
 
-    let num = if let Ok(Some(num)) = opt(int_with_base.take()).parse_next(i) {
+    let num = if let Some(num) = opt(int_with_base.take()).parse_next(i)? {
         let suffix =
             opt(|i: &mut _| num_lit_suffix("integer", INTEGER_TYPES, start, i)).parse_next(i)?;
         Num::Int(num, suffix)

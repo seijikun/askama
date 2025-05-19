@@ -1415,3 +1415,11 @@ fn underscore_is_an_identifier() {
     assert_eq!(result.unwrap(), "_");
     assert_eq!(input, "");
 }
+
+#[test]
+fn there_is_no_digit_two_in_a_binary_integer() {
+    let syntax = Syntax::default();
+    assert!(Ast::from_str("{{ 0b2 }}", None, &syntax).is_err());
+    assert!(Ast::from_str("{{ 0o9 }}", None, &syntax).is_err());
+    assert!(Ast::from_str("{{ 0xg }}", None, &syntax).is_err());
+}
