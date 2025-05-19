@@ -1,5 +1,7 @@
+use std::hint::black_box;
+
 use askama_escape::escape_html;
-use criterion::{Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 
 criterion_main!(benches);
 criterion_group!(benches, functions);

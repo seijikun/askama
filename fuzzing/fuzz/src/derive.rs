@@ -48,7 +48,7 @@ impl fmt::Display for Scenario<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self { item } = self;
         let ts = quote! {
-            use askama_derive::Ast;
+            use askama_derive::derive_template;
             use quote::quote;
 
             #[test]

@@ -43,7 +43,7 @@ jobs:
   Docs:
     strategy:
       matrix:
-        package: [askama, askama_derive, askama_parser]
+        package: [askama, askama_derive, askama_macros, askama_parser]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
