@@ -249,22 +249,35 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
         .map(|a| a.take_crate_name())
         .unwrap_or_default();
 
-    let result = args.and_then(|args| build_template(&mut buf, &ast, args));
-    let ts = if let Err(CompileError { msg, span }) = result {
-        let mut ts = quote_spanned! {
-            span.unwrap_or(ast.ident.span()) =>
-            askama::helpers::core::compile_error!(#msg);
-        };
-        buf.clear();
-        if build_skeleton(&mut buf, &ast).is_ok() {
-            let source: TokenStream = buf.into_string().parse().unwrap();
-            ts.extend(source);
-        }
-        ts
-    } else {
-        buf.into_string().parse().unwrap()
-    };
-
+    let ts = args
+        .and_then(|args| build_template(&mut buf, &ast, args))
+        .map(|_| {
+            let src = buf.as_str();
+            match src.parse() {
+                Ok(ts) => ts,
+                Err(err) => panic!(
+                    "Unparsable code was generated. Please report this bug to us: \
+                    <https://github.com/askama-rs/askama/issues>\n\n\
+                    Error: {err}\n\n\
+                    Generated source:\n\
+                    ------------------------------------------------\n\
+                    {src:?}\n\
+                    ------------------------------------------------\n\n"
+                ),
+            }
+        })
+        .unwrap_or_else(|CompileError { msg, span }| {
+            let mut ts = quote_spanned! {
+                span.unwrap_or(ast.ident.span()) =>
+                askama::helpers::core::compile_error!(#msg);
+            };
+            buf.clear();
+            if build_skeleton(&mut buf, &ast).is_ok() {
+                let source: TokenStream = buf.into_string().parse().unwrap();
+                ts.extend(source);
+            }
+            ts
+        });
     let import_askama = match crate_name {
         Some(crate_name) => quote!(use #crate_name as askama;),
         None => import_askama(),
