@@ -1077,6 +1077,11 @@ pub fn strip_common(base: &Path, path: &Path) -> String {
     }
 }
 
+#[inline]
+pub(crate) fn can_be_variable_name(name: &str) -> bool {
+    !matches!(name, "self" | "Self" | "super" | "crate")
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IntKind {
     I8,

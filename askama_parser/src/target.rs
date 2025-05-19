@@ -108,6 +108,15 @@ impl<'a> Target<'a> {
                 return Ok(Self::Struct(path, targets));
             }
 
+            // If the path only contains one item, we need to check the name.
+            if let [name] = path.as_slice() {
+                if !crate::can_be_variable_name(name) {
+                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        format!("`{name}` cannot be used as an identifier"),
+                        i_before_matching_with,
+                    )));
+                }
+            }
             *i = i_before_matching_with;
             return Ok(Self::Path(path));
         }
@@ -202,6 +211,11 @@ fn verify_name<'a>(
     if is_rust_keyword(name) {
         Err(winnow::error::ErrMode::Cut(ErrorContext::new(
             format!("cannot use `{name}` as a name: it is a rust keyword"),
+            input,
+        )))
+    } else if !crate::can_be_variable_name(name) {
+        Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            format!("`{name}` cannot be used as an identifier"),
             input,
         )))
     } else if name.starts_with("__askama") {

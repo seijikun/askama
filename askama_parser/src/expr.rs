@@ -39,6 +39,14 @@ fn check_expr<'a>(
     allow_underscore: bool,
 ) -> Result<(), ParseErr<'a>> {
     match &expr.inner {
+        // List can be found in rust compiler "can_be_raw" function (although in our case, it's also
+        // used in cases like `match`, so `self` is allowed in this case).
+        Expr::Var(name @ ("crate" | "super" | "Self")) => {
+            Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                format!("`{name}` cannot be used as an identifier"),
+                expr.span,
+            )))
+        }
         Expr::Var("_") if !allow_underscore => Err(winnow::error::ErrMode::Cut(ErrorContext::new(
             "reserved keyword `_` cannot be used here",
             expr.span,
@@ -53,11 +61,21 @@ fn check_expr<'a>(
                 Ok(())
             }
         }
+        Expr::Path(path) => {
+            if let [name] = path.as_slice() {
+                if !crate::can_be_variable_name(name) {
+                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        format!("`{name}` cannot be used as an identifier"),
+                        expr.span,
+                    )));
+                }
+            }
+            Ok(())
+        }
         Expr::BoolLit(_)
         | Expr::NumLit(_, _)
         | Expr::StrLit(_)
         | Expr::CharLit(_)
-        | Expr::Path(_)
         | Expr::Attr(_, _)
         | Expr::Filter(_)
         | Expr::NamedArgument(_, _)
@@ -702,7 +720,17 @@ impl<'a> Suffix<'a> {
         preceded(
             ws(('.', not('.'))),
             cut_err((
-                alt((digit1, identifier)),
+                |i: &mut _| {
+                    let name = alt((digit1, identifier)).parse_next(i)?;
+                    if !crate::can_be_variable_name(name) {
+                        Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                            format!("`{name}` cannot be used as an identifier"),
+                            *i,
+                        )))
+                    } else {
+                        Ok(name)
+                    }
+                },
                 opt(|i: &mut _| call_generics(i, level)),
             )),
         )
