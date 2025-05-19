@@ -5,6 +5,7 @@ use std::path::Path;
 
 use console::style;
 use prettyplease::unparse;
+use proc_macro2::TokenStream;
 use quote::quote;
 use similar::{Algorithm, ChangeTag, TextDiffConfig};
 
@@ -17,6 +18,12 @@ fn build_template(ast: &syn::DeriveInput) -> Result<String, crate::CompileError>
     let args = AnyTemplateArgs::new(ast)?;
     crate::build_template(&mut buf, ast, args)?;
     Ok(buf.into_string())
+}
+
+fn import_askama() -> TokenStream {
+    quote! {
+        extern crate askama;
+    }
 }
 
 // This function makes it much easier to compare expected code by adding the wrapping around
@@ -36,7 +43,7 @@ fn compare_ex(
 ) {
     let generated = jinja_to_rust(jinja, fields, prefix).unwrap();
 
-    let expected: proc_macro2::TokenStream = expected.parse().unwrap();
+    let expected: TokenStream = expected.parse().unwrap();
     let expected: syn::File = syn::parse_quote! {
         impl askama::Template for Foo {
             fn render_into_with_values<AskamaW>(
@@ -1179,11 +1186,7 @@ fn test_generated_with_error() {
         #[template(ext = "txt", source = "test {#")]
         struct HelloWorld;
     };
-    let ts = crate::derive_template(ts, || {
-        quote! {
-            extern crate askama;
-        }
-    });
+    let ts = crate::derive_template(ts, import_askama);
     let _: syn::File = syn::parse2(ts).unwrap();
 }
 
@@ -1207,4 +1210,18 @@ fn test_filter_with_path() {
         &[("a", "i8")],
         3,
     );
+}
+
+#[test]
+fn fuzzed_0b85() -> Result<(), syn::Error> {
+    let input = quote! {
+        #[template(
+            ext = "",
+            source = "\u{c}{{vSelf&&h<6-0b85%04540736.66609.500804540736.660<c7~}}2/3\0{w66hi%e<a}}"
+        )]
+        struct a {}
+    };
+    let output = crate::derive_template(input, import_askama);
+    let _: syn::File = syn::parse2(output)?;
+    Ok(())
 }
