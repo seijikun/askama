@@ -101,6 +101,10 @@ impl Buffer {
         }
     }
 
+    pub(crate) fn as_str(&self) -> &str {
+        &self.buf
+    }
+
     pub(crate) fn into_string(self) -> String {
         self.buf
     }
