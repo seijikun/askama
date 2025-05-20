@@ -113,7 +113,7 @@ impl<'a> Target<'a> {
                 if !crate::can_be_variable_name(name) {
                     return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
                         format!("`{name}` cannot be used as an identifier"),
-                        i_before_matching_with,
+                        *name,
                     )));
                 }
             }

@@ -303,8 +303,8 @@ error: cannot use `self` as a name: it is a rust keyword
    |                    ^^^^^^^^^^^^^^^^
 
 error: `Self` cannot be used as an identifier
- --> <source attribute>:1:11
-       " %}"
+ --> <source attribute>:1:7
+       "Self %}"
   --> tests/ui/assign-to-askama.rs:55:20
    |
 55 | test_kw!(UpperSelf "{% let Self %}");

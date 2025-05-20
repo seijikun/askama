@@ -39,8 +39,8 @@ error: cannot use `crate` as a name: it is a rust keyword
    |                                   ^^^^^^^^^^^^^^^^^^^^^^
 
 error: `crate` cannot be used as an identifier
- --> <source attribute>:1:15
-       " }}"
+ --> <source attribute>:1:10
+       "crate }}"
   --> tests/ui/crate_identifier.rs:24:35
    |
 24 | #[template(ext = "html", source = "{{ self.a.crate }}")]
@@ -87,8 +87,8 @@ error: cannot use `super` as a name: it is a rust keyword
    |                                   ^^^^^^^^^^^^^^^^^^^^^^
 
 error: `super` cannot be used as an identifier
- --> <source attribute>:1:15
-       " }}"
+ --> <source attribute>:1:10
+       "super }}"
   --> tests/ui/crate_identifier.rs:50:35
    |
 50 | #[template(ext = "html", source = "{{ self.a.super }}")]
@@ -119,24 +119,24 @@ error: `Self` cannot be used as an identifier
    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `Self` cannot be used as an identifier
- --> <source attribute>:1:11
-       " %}"
+ --> <source attribute>:1:7
+       "Self %}"
   --> tests/ui/crate_identifier.rs:68:35
    |
 68 | #[template(ext = "html", source = "{% let Self %}")]
    |                                   ^^^^^^^^^^^^^^^^
 
 error: `Self` cannot be used as an identifier
- --> <source attribute>:1:11
-       " = 12 %}"
+ --> <source attribute>:1:7
+       "Self = 12 %}"
   --> tests/ui/crate_identifier.rs:72:35
    |
 72 | #[template(ext = "html", source = "{% let Self = 12 %}")]
    |                                   ^^^^^^^^^^^^^^^^^^^^^
 
 error: `Self` cannot be used as an identifier
- --> <source attribute>:1:14
-       " }}"
+ --> <source attribute>:1:10
+       "Self }}"
   --> tests/ui/crate_identifier.rs:76:35
    |
 76 | #[template(ext = "html", source = "{{ self.a.Self }}")]
@@ -159,8 +159,8 @@ error: cannot use `self` as a name: it is a rust keyword
    |                                   ^^^^^^^^^^^^^^^^^^^^^
 
 error: `self` cannot be used as an identifier
- --> <source attribute>:1:14
-       " }}"
+ --> <source attribute>:1:10
+       "self }}"
   --> tests/ui/crate_identifier.rs:90:35
    |
 90 | #[template(ext = "html", source = "{{ self.a.self }}")]

@@ -66,7 +66,7 @@ fn check_expr<'a>(
                 if !crate::can_be_variable_name(name) {
                     return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
                         format!("`{name}` cannot be used as an identifier"),
-                        expr.span,
+                        *name,
                     )));
                 }
             }
@@ -725,7 +725,7 @@ impl<'a> Suffix<'a> {
                     if !crate::can_be_variable_name(name) {
                         Err(winnow::error::ErrMode::Cut(ErrorContext::new(
                             format!("`{name}` cannot be used as an identifier"),
-                            *i,
+                            name,
                         )))
                     } else {
                         Ok(name)
