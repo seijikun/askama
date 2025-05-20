@@ -300,3 +300,23 @@ fn test_end_when() {
     let tmpl = EndWhen { result: None };
     assert_eq!(tmpl.to_string(), "unprocessed\n");
 }
+
+// This test ensures that `self` can be used as `match` "argument".
+#[test]
+fn test_self_match() {
+    #[derive(Template)]
+    #[template(
+        ext = "html",
+        source = "
+{%- match self %}
+    {%- when Self::A %}A
+    {%- when Self::B %}B
+{%- endmatch %}"
+    )]
+    enum Yeay {
+        A,
+        B,
+    }
+    assert_eq!(Yeay::A.to_string(), "A");
+    assert_eq!(Yeay::B.to_string(), "B");
+}

@@ -302,9 +302,9 @@ error: cannot use `self` as a name: it is a rust keyword
 54 | test_kw!(LowerSelf "{% let self %}");
    |                    ^^^^^^^^^^^^^^^^
 
-error: when you forward-define a variable, you cannot use a path or enum variant in place of a variable name
- --> <source attribute>:1:2
-       " let Self %}"
+error: `Self` cannot be used as an identifier
+ --> <source attribute>:1:7
+       "Self %}"
   --> tests/ui/assign-to-askama.rs:55:20
    |
 55 | test_kw!(UpperSelf "{% let Self %}");
