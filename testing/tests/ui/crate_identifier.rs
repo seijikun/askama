@@ -100,4 +100,52 @@ struct SmallSelf3 {
 )]
 struct Regression {}
 
+#[derive(Template)]
+#[template(ext = "html", source = "{% match a %}{% when a::b::super %}{% endmatch %}")]
+struct PathElemSuper {
+    a: u8,
+}
+
+#[derive(Template)]
+#[template(ext = "html", source = "{% match a %}{% when self::a::b::super %}{% endmatch %}")]
+struct PathElemSuper2 {
+    a: u8,
+}
+
+#[derive(Template)]
+#[template(ext = "html", source = "{% match a %}{% when a::b::self %}{% endmatch %}")]
+struct PathElemSelf {
+    a: u8,
+}
+
+#[derive(Template)]
+#[template(ext = "html", source = "{% match a %}{% when self::a::b::self %}{% endmatch %}")]
+struct PathElemSelf2 {
+    a: u8,
+}
+
+#[derive(Template)]
+#[template(ext = "html", source = "{% match a %}{% when a::b::crate %}{% endmatch %}")]
+struct PathElemCrate {
+    a: u8,
+}
+
+#[derive(Template)]
+#[template(ext = "html", source = "{% match a %}{% when self::a::b::crate %}{% endmatch %}")]
+struct PathElemCrate2 {
+    a: u8,
+}
+
+#[derive(Template)]
+#[template(ext = "html", source = "{% match a %}{% when a::b::Self %}{% endmatch %}")]
+struct PathElemSelfType {
+    a: u8,
+}
+
+#[derive(Template)]
+#[template(ext = "html", source = "{% match a %}{% when self::a::b::Self %}{% endmatch %}")]
+struct PathElemSelfType2 {
+    a: u8,
+}
+
 fn main() {}

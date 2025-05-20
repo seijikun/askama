@@ -4,8 +4,8 @@ use winnow::{ModalParser, Parser};
 
 use crate::{
     CharLit, ErrorContext, Num, ParseErr, ParseResult, PathOrIdentifier, State, StrLit, WithSpan,
-    bool_lit, char_lit, identifier, is_rust_keyword, keyword, num_lit, path_or_identifier, str_lit,
-    ws,
+    bool_lit, can_be_variable_name, char_lit, identifier, is_rust_keyword, keyword, num_lit,
+    path_or_identifier, str_lit, ws,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -108,15 +108,24 @@ impl<'a> Target<'a> {
                 return Ok(Self::Struct(path, targets));
             }
 
-            // If the path only contains one item, we need to check the name.
             if let [name] = path.as_slice() {
-                if !crate::can_be_variable_name(name) {
+                // If the path only contains one item, we need to check the name.
+                if !can_be_variable_name(name) {
+                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        format!("`{name}` cannot be used as an identifier"),
+                        *name,
+                    )));
+                }
+            } else {
+                // Otherwise we need to check every element but the first.
+                if let Some(name) = path.iter().skip(1).find(|n| !can_be_variable_name(n)) {
                     return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
                         format!("`{name}` cannot be used as an identifier"),
                         *name,
                     )));
                 }
             }
+
             *i = i_before_matching_with;
             return Ok(Self::Path(path));
         }
@@ -213,7 +222,7 @@ fn verify_name<'a>(
             format!("cannot use `{name}` as a name: it is a rust keyword"),
             input,
         )))
-    } else if !crate::can_be_variable_name(name) {
+    } else if !can_be_variable_name(name) {
         Err(winnow::error::ErrMode::Cut(ErrorContext::new(
             format!("`{name}` cannot be used as an identifier"),
             input,

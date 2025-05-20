@@ -173,3 +173,67 @@ error: `crate` cannot be used as an identifier
    |
 99 |     source = "{{\u{c}KK3e331<c7}}61/63m3333u7<c0.}}\u{6}\0\u{c}\u{c}{{c/crate<338<c7}}6unsafe/63a3ae\u{c}\u{c}\u{c}%et"
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `super` cannot be used as an identifier
+ --> <source attribute>:1:27
+       "super %}{% endmatch %}"
+   --> tests/ui/crate_identifier.rs:104:35
+    |
+104 | #[template(ext = "html", source = "{% match a %}{% when a::b::super %}{% endmatch %}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `super` cannot be used as an identifier
+ --> <source attribute>:1:33
+       "super %}{% endmatch %}"
+   --> tests/ui/crate_identifier.rs:110:35
+    |
+110 | #[template(ext = "html", source = "{% match a %}{% when self::a::b::super %}{% endmatch %}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `self` cannot be used as an identifier
+ --> <source attribute>:1:27
+       "self %}{% endmatch %}"
+   --> tests/ui/crate_identifier.rs:116:35
+    |
+116 | #[template(ext = "html", source = "{% match a %}{% when a::b::self %}{% endmatch %}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `self` cannot be used as an identifier
+ --> <source attribute>:1:33
+       "self %}{% endmatch %}"
+   --> tests/ui/crate_identifier.rs:122:35
+    |
+122 | #[template(ext = "html", source = "{% match a %}{% when self::a::b::self %}{% endmatch %}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `crate` cannot be used as an identifier
+ --> <source attribute>:1:27
+       "crate %}{% endmatch %}"
+   --> tests/ui/crate_identifier.rs:128:35
+    |
+128 | #[template(ext = "html", source = "{% match a %}{% when a::b::crate %}{% endmatch %}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `crate` cannot be used as an identifier
+ --> <source attribute>:1:33
+       "crate %}{% endmatch %}"
+   --> tests/ui/crate_identifier.rs:134:35
+    |
+134 | #[template(ext = "html", source = "{% match a %}{% when self::a::b::crate %}{% endmatch %}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `Self` cannot be used as an identifier
+ --> <source attribute>:1:27
+       "Self %}{% endmatch %}"
+   --> tests/ui/crate_identifier.rs:140:35
+    |
+140 | #[template(ext = "html", source = "{% match a %}{% when a::b::Self %}{% endmatch %}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `Self` cannot be used as an identifier
+ --> <source attribute>:1:33
+       "Self %}{% endmatch %}"
+   --> tests/ui/crate_identifier.rs:146:35
+    |
+146 | #[template(ext = "html", source = "{% match a %}{% when self::a::b::Self %}{% endmatch %}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
