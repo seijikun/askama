@@ -1127,10 +1127,14 @@ impl<'a> Generator<'a, '_> {
                 ctx: &Context<'a>,
                 expected: usize,
                 found: usize,
+                name: &str,
             ) -> Result<(), CompileError> {
                 if expected != found {
                     Err(ctx.generate_error(
-                        format!("expected `{}` argument, found `{}`", expected, found),
+                        format!(
+                            "expected {expected} argument{} in `{name}`, found {found}",
+                            if expected != 1 { "s" } else { "" }
+                        ),
                         s.span(),
                     ))
                 } else {
@@ -1138,11 +1142,11 @@ impl<'a> Generator<'a, '_> {
                 }
             }
             if ***path == Expr::Var("super") {
-                check_num_args(s, ctx, 0, expr_args.len())?;
+                check_num_args(s, ctx, 0, expr_args.len(), "super")?;
                 return self.write_block(ctx, buf, None, ws, s.span());
             } else if ***path == Expr::Var("caller") {
                 let def = self.active_caller.ok_or_else(|| {
-                    ctx.generate_error(format_args!("block is not defined for caller"), s.span())
+                    ctx.generate_error(format_args!("block is not defined for `caller`"), s.span())
                 })?;
                 self.active_caller = None;
                 self.handle_ws(ws);
@@ -1151,7 +1155,7 @@ impl<'a> Generator<'a, '_> {
                     buf.write('{');
                     this.prepare_ws(def.ws1);
                     let mut value = Buffer::new();
-                    check_num_args(s, ctx, def.caller_args.len(), expr_args.len())?;
+                    check_num_args(s, ctx, def.caller_args.len(), expr_args.len(), "caller")?;
                     for (index, arg) in def.caller_args.iter().enumerate() {
                         match expr_args.get(index) {
                             Some(expr) => {
