@@ -612,6 +612,7 @@ impl<'a> Generator<'a, '_> {
             scope,
             name,
             ref args,
+            ws2,
             ..
         } = **call;
 
@@ -776,7 +777,7 @@ impl<'a> Generator<'a, '_> {
             buf.write('}');
             Ok(size_hint)
         })?;
-        self.prepare_ws(ws1);
+        self.prepare_ws(ws2);
         self.seen_callers.pop();
         self.active_caller = None;
         Ok(size_hint)

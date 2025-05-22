@@ -106,6 +106,8 @@ mod test_double_attr_arg {
     }
 }
 
+// This test ensures that whitespace characters are removed when `endcall` ends
+// with `-%}`.
 #[test]
 fn test_caller() {
     #[derive(Template)]
@@ -120,9 +122,28 @@ nested
 "#,
         ext = "html"
     )]
-    struct CallerEmpty {}
-    let x = CallerEmpty {};
-    assert_eq!(x.render().unwrap(), "\nnested\n\n");
+    struct CallerEmpty;
+    assert_eq!(CallerEmpty.render().unwrap(), "\nnested\n");
+}
+
+// This test ensures that whitespace characters are NOT removed when `endcall` ends
+// with `%}`.
+#[test]
+fn test_caller2() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test() -%}
+{{- caller() -}}
+{%- endmacro -%}
+{%- call() test() %}
+nested
+{% endcall %}
+"#,
+        ext = "html"
+    )]
+    struct CallerEmpty;
+    assert_eq!(CallerEmpty.render().unwrap(), "\nnested\n\n");
 }
 
 #[test]
