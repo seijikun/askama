@@ -39,5 +39,5 @@
         </a>
     </h2>
 
-    {%- call lang_select("greeting_handler", name|urlencode|fmt("?name={}")) -%}
+    {%- call lang_select("greeting_handler", name|urlencode|fmt("?name={}")) -%}{%- endcall -%}
 {%- endblock -%}
