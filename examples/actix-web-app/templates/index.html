@@ -85,5 +85,5 @@
         The called macro is defined in base template "_layout.html",
         and used to display the language selection footer.
     ~#}
-    {%- call lang_select("index_handler", "") -%}
+    {%- call lang_select("index_handler", "") -%}{%- endcall -%}
 {%- endblock -%}

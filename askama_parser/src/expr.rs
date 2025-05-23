@@ -34,23 +34,31 @@ macro_rules! expr_prec_layer {
     };
 }
 
-fn check_expr<'a>(
-    expr: &WithSpan<'a, Expr<'a>>,
-    allow_underscore: bool,
-) -> Result<(), ParseErr<'a>> {
+#[derive(Clone, Copy, Default)]
+struct Allowed {
+    underscore: bool,
+    super_keyword: bool,
+}
+
+fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(), ParseErr<'a>> {
     match &expr.inner {
-        // List can be found in rust compiler "can_be_raw" function (although in our case, it's also
-        // used in cases like `match`, so `self` is allowed in this case).
-        Expr::Var(name @ ("crate" | "super" | "Self")) => {
-            Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                format!("`{name}` cannot be used as an identifier"),
-                expr.span,
-            )))
+        Expr::Var(name) => {
+            // List can be found in rust compiler "can_be_raw" function (although in our case, it's
+            // also used in cases like `match`, so `self` is allowed in this case).
+            if (!allowed.super_keyword && *name == "super") || matches!(*name, "crate" | "Self") {
+                Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    format!("`{name}` cannot be used as an identifier"),
+                    expr.span,
+                )))
+            } else if !allowed.underscore && *name == "_" {
+                Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    "reserved keyword `_` cannot be used here",
+                    expr.span,
+                )))
+            } else {
+                Ok(())
+            }
         }
-        Expr::Var("_") if !allow_underscore => Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-            "reserved keyword `_` cannot be used here",
-            expr.span,
-        ))),
         Expr::IsDefined(var) | Expr::IsNotDefined(var) => {
             if *var == "_" {
                 Err(winnow::error::ErrMode::Cut(ErrorContext::new(
@@ -79,35 +87,42 @@ fn check_expr<'a>(
         | Expr::Attr(_, _)
         | Expr::Filter(_)
         | Expr::NamedArgument(_, _)
-        | Expr::Var(_)
         | Expr::RustMacro(_, _)
         | Expr::Try(_)
         | Expr::FilterSource
         | Expr::LetCond(_) => Ok(()),
         Expr::Array(elems) | Expr::Tuple(elems) | Expr::Concat(elems) => {
             for elem in elems {
-                check_expr(elem, allow_underscore)?;
+                check_expr(elem, allowed)?;
             }
             Ok(())
         }
         Expr::Index(elem1, elem2) | Expr::BinOp(_, elem1, elem2) => {
-            check_expr(elem1, false)?;
-            check_expr(elem2, false)
+            check_expr(elem1, Allowed::default())?;
+            check_expr(elem2, Allowed::default())
         }
         Expr::Range(_, elem1, elem2) => {
             if let Some(elem1) = elem1 {
-                check_expr(elem1, false)?;
+                check_expr(elem1, Allowed::default())?;
             }
             if let Some(elem2) = elem2 {
-                check_expr(elem2, false)?;
+                check_expr(elem2, Allowed::default())?;
             }
             Ok(())
         }
-        Expr::As(elem, _) | Expr::Unary(_, elem) | Expr::Group(elem) => check_expr(elem, false),
+        Expr::As(elem, _) | Expr::Unary(_, elem) | Expr::Group(elem) => {
+            check_expr(elem, Allowed::default())
+        }
         Expr::Call { path, args, .. } => {
-            check_expr(path, false)?;
+            check_expr(
+                path,
+                Allowed {
+                    underscore: false,
+                    super_keyword: true,
+                },
+            )?;
             for arg in args {
-                check_expr(arg, false)?;
+                check_expr(arg, Allowed::default())?;
             }
             Ok(())
         }
@@ -274,7 +289,13 @@ impl<'a> Expr<'a> {
             }),
         ))
         .parse_next(i)?;
-        check_expr(&expr, allow_underscore)?;
+        check_expr(
+            &expr,
+            Allowed {
+                underscore: allow_underscore,
+                super_keyword: false,
+            },
+        )?;
         Ok(expr)
     }
 
