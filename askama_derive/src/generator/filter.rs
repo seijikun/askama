@@ -93,18 +93,7 @@ impl<'a> Generator<'a, '_> {
         generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_no_named_arguments(ctx, name, args, node)?;
-        buf.write(format_args!("filters::{name}"));
-        self.visit_call_generics(buf, generics);
-        buf.write('(');
-        self.visit_arg(ctx, buf, &args[0])?;
-        buf.write(",__askama_values");
-        if args.len() > 1 {
-            buf.write(',');
-            self.visit_args(ctx, buf, &args[1..])?;
-        }
-        buf.write(")?");
-        Ok(DisplayWrap::Unwrapped)
+        self.visit_custom_filter_with_path(ctx, buf, &["filters", name], args, generics, node)
     }
 
     fn visit_builtin_filter_alloc(
