@@ -1,4 +1,4 @@
-use std::fmt;
+use std::fmt::{self, Write};
 
 use arbitrary::{Arbitrary, Unstructured};
 use askama::filters::{self, AsIndent};
@@ -25,14 +25,14 @@ impl<'a> super::Scenario<'a> for Scenario<'a> {
         match self {
             &Scenario::Text(text) => run_text(text)?,
             Scenario::Join(input, separator) => {
-                let _ = filters::join(input, separator)?.to_string();
+                let _ = filters::join(input, separator)?.to_dev_null();
             }
             Scenario::Unique(items) => {
                 let _ = filters::unique(items)?.collect::<Vec<_>>();
             }
             Scenario::Wordcount(input) => {
                 let c = filters::wordcount(input);
-                let _ = c.to_string();
+                let _ = c.to_dev_null();
                 let _ = c.into_count();
                 return Ok(());
             }
@@ -44,28 +44,28 @@ impl<'a> super::Scenario<'a> for Scenario<'a> {
 fn run_text(filter: Text<'_>) -> Result<(), askama::Error> {
     let Text { input, filter } = filter;
     let _ = match filter {
-        TextFilter::Capitalize => filters::capitalize(input)?.to_string(),
-        TextFilter::Center(a) => filters::center(input, a)?.to_string(),
+        TextFilter::Capitalize => filters::capitalize(input)?.to_dev_null(),
+        TextFilter::Center(a) => filters::center(input, a)?.to_dev_null(),
         TextFilter::Indent {
             prefix,
             first,
             blank,
-        } => filters::indent(input, prefix, first, blank)?.to_string(),
-        TextFilter::Linebreaks => filters::linebreaks(input)?.to_string(),
-        TextFilter::LinebreaksBr => filters::linebreaksbr(input)?.to_string(),
-        TextFilter::Lowercase => filters::lowercase(input)?.to_string(),
-        TextFilter::ParagraphBreaks => filters::paragraphbreaks(input)?.to_string(),
-        TextFilter::Safe(e) => filters::safe(input, e)?.to_string(),
-        TextFilter::Title => filters::title(input)?.to_string(),
-        TextFilter::Trim => filters::trim(input)?.to_string(),
-        TextFilter::Truncate(a) => filters::truncate(input, a)?.to_string(),
-        TextFilter::Uppercase => filters::uppercase(input)?.to_string(),
-        TextFilter::Urlencode => filters::urlencode(input)?.to_string(),
-        TextFilter::UrlencodeStrict => filters::urlencode_strict(input)?.to_string(),
-        TextFilter::Escape(escaper) => filters::escape(input, escaper)?.to_string(),
-        TextFilter::Filesizeformat(size) => filters::filesizeformat(size)?.to_string(),
-        TextFilter::Json => filters::json(input)?.to_string(),
-        TextFilter::JsonPretty(prefix) => filters::json_pretty(input, prefix)?.to_string(),
+        } => filters::indent(input, prefix, first, blank)?.to_dev_null(),
+        TextFilter::Linebreaks => filters::linebreaks(input)?.to_dev_null(),
+        TextFilter::LinebreaksBr => filters::linebreaksbr(input)?.to_dev_null(),
+        TextFilter::Lowercase => filters::lowercase(input)?.to_dev_null(),
+        TextFilter::ParagraphBreaks => filters::paragraphbreaks(input)?.to_dev_null(),
+        TextFilter::Safe(e) => filters::safe(input, e)?.to_dev_null(),
+        TextFilter::Title => filters::title(input)?.to_dev_null(),
+        TextFilter::Trim => filters::trim(input)?.to_dev_null(),
+        TextFilter::Truncate(a) => filters::truncate(input, a)?.to_dev_null(),
+        TextFilter::Uppercase => filters::uppercase(input)?.to_dev_null(),
+        TextFilter::Urlencode => filters::urlencode(input)?.to_dev_null(),
+        TextFilter::UrlencodeStrict => filters::urlencode_strict(input)?.to_dev_null(),
+        TextFilter::Escape(escaper) => filters::escape(input, escaper)?.to_dev_null(),
+        TextFilter::Filesizeformat(size) => filters::filesizeformat(size)?.to_dev_null(),
+        TextFilter::Json => filters::json(input)?.to_dev_null(),
+        TextFilter::JsonPretty(prefix) => filters::json_pretty(input, prefix)?.to_dev_null(),
     };
     Ok(())
 }
@@ -232,5 +232,29 @@ impl filters::Escaper for Escaper {
             Escaper::Html => filters::Html.write_escaped_char(dest, c),
             Escaper::Text => filters::Text.write_escaped_char(dest, c),
         }
+    }
+}
+
+struct DevNull;
+
+impl fmt::Write for DevNull {
+    fn write_str(&mut self, _: &str) -> fmt::Result {
+        Ok(())
+    }
+
+    fn write_char(&mut self, _: char) -> fmt::Result {
+        Ok(())
+    }
+
+    // Must not implement `write_fmt()`, because that's where the recursive calls happen.
+}
+
+trait ToDevNull {
+    fn to_dev_null(&self) -> fmt::Result;
+}
+
+impl<T: fmt::Display> ToDevNull for T {
+    fn to_dev_null(&self) -> fmt::Result {
+        write!(DevNull, "{self}")
     }
 }
