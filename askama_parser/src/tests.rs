@@ -1417,3 +1417,19 @@ fn comparison_operators_cannot_be_chained() {
         }
     }
 }
+
+#[test]
+fn macro_calls_can_have_raw_prefixes() {
+    // Related to issue <https://github.com/askama-rs/askama/issues/475>.
+    let syntax = Syntax::default();
+    let inner = r####"r#"test"# r##"test"## r###"test"### r#loop"####;
+    assert_eq!(
+        Ast::from_str(&format!("{{{{ z!{{{inner}}} }}}}"), None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["z"], inner)),
+        )],
+    );
+}
