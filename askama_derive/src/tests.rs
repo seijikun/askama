@@ -9,8 +9,8 @@ use proc_macro2::TokenStream;
 use quote::quote;
 use similar::{Algorithm, ChangeTag, TextDiffConfig};
 
-use crate::AnyTemplateArgs;
 use crate::integration::Buffer;
+use crate::{AnyTemplateArgs, derive_template};
 
 #[track_caller]
 fn build_template(ast: &syn::DeriveInput) -> Result<String, crate::CompileError> {
@@ -1186,7 +1186,7 @@ fn test_generated_with_error() {
         #[template(ext = "txt", source = "test {#")]
         struct HelloWorld;
     };
-    let ts = crate::derive_template(ts, import_askama);
+    let ts = derive_template(ts, import_askama);
     let _: syn::File = syn::parse2(ts).unwrap();
 }
 
@@ -1221,7 +1221,7 @@ fn fuzzed_0b85() -> Result<(), syn::Error> {
         )]
         struct a {}
     };
-    let output = crate::derive_template(input, import_askama);
+    let output = derive_template(input, import_askama);
     let _: syn::File = syn::parse2(output)?;
     Ok(())
 }
@@ -1235,7 +1235,7 @@ fn fuzzed_comparator_chain() -> Result<(), syn::Error> {
         )]
         enum fff {}
     };
-    let output = crate::derive_template(input, import_askama);
+    let output = derive_template(input, import_askama);
     let _: syn::File = syn::parse2(output)?;
     Ok(())
 }
@@ -1293,8 +1293,43 @@ fn test_macro_calls_need_proper_tokens() -> Result<(), syn::Error> {
         )]
         struct f {}
     };
-    let output = crate::derive_template(input, import_askama);
+    let output = derive_template(input, import_askama);
     assert!(output.to_string().contains("expected valid tokens in macro call"));
+    let _: syn::File = syn::parse2(output)?;
+    Ok(())
+}
+
+#[test]
+fn test_macro_call_raw_prefix_without_data() -> Result<(), syn::Error> {
+    // Regression test for <https://github.com/askama-rs/askama/issues/475>.
+    // The parser must reject wrong usage of raw prefixes.
+    let input = quote! {
+        #[template(ext = "", source = "{{ z!{r#} }}")]
+        enum q {}
+    };
+    let output = derive_template(input, import_askama);
+    assert!(
+        output
+            .to_string()
+            .contains("raw prefix `r#` is only allowed with raw identifiers and raw strings")
+    );
+    let _: syn::File = syn::parse2(output)?;
+    Ok(())
+}
+
+#[test]
+fn test_macro_call_reserved_prefix() -> Result<(), syn::Error> {
+    // The parser must reject reserved prefixes.
+    let input = quote! {
+        #[template(ext = "", source = "{{ z!{hello#world} }}")]
+        enum q {}
+    };
+    let output = derive_template(input, import_askama);
+    assert!(
+        output
+            .to_string()
+            .contains("reserved prefix `hello#`, only `r#` is allowed")
+    );
     let _: syn::File = syn::parse2(output)?;
     Ok(())
 }

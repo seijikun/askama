@@ -773,8 +773,8 @@ impl<'a> Suffix<'a> {
         fn token<'a>(i: &mut &'a str) -> ParseResult<'a, Token> {
             // <https://doc.rust-lang.org/reference/tokens.html>
             let some_other = alt((
-                // keywords + identifiers
-                identifier.value(Token::SomeOther),
+                // keywords + (raw) identifiers + raw strings
+                identifier_or_prefixed_string,
                 // literals
                 Expr::char.value(Token::SomeOther),
                 Expr::str.value(Token::SomeOther),
@@ -783,15 +783,76 @@ impl<'a> Suffix<'a> {
                 ('\'', identifier, not(peek('\''))).value(Token::SomeOther),
                 // punctuations
                 punctuation.value(Token::SomeOther),
+                hash,
             ));
             alt((open.map(Token::Open), close.map(Token::Close), some_other)).parse_next(i)
         }
 
+        fn identifier_or_prefixed_string<'a>(i: &mut &'a str) -> ParseResult<'a, Token> {
+            let prefix = identifier.parse_next(i)?;
+            if opt('#').parse_next(i)?.is_none() {
+                // a simple identifier
+                return Ok(Token::SomeOther);
+            }
+
+            match prefix {
+                // raw cstring or byte slice
+                "cr" | "br" => {}
+                // raw string string or identifier
+                "r" => {
+                    if opt(identifier).parse_next(i)?.is_some() {
+                        return Ok(Token::SomeOther);
+                    }
+                }
+                // reserved prefix: reject
+                _ => {
+                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        format!(
+                            "reserved prefix `{}#`, only `r#` is allowed",
+                            prefix.escape_debug(),
+                        ),
+                        prefix,
+                    )));
+                }
+            }
+
+            let hashes: usize = repeat(.., '#').parse_next(i)?;
+            if opt('"').parse_next(i)?.is_none() {
+                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    "raw prefix `r#` is only allowed with raw identifiers and raw strings",
+                    prefix,
+                )));
+            }
+
+            let Some((_, j)) = i.split_once(&format!("\"#{:#<hashes$}", "")) else {
+                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    "unterminated raw string",
+                    prefix,
+                )));
+            };
+            *i = j;
+
+            Ok(Token::SomeOther)
+        }
+
+        fn hash<'a>(i: &mut &'a str) -> ParseResult<'a, Token> {
+            let start = *i;
+            '#'.parse_next(i)?;
+            if opt('"').parse_next(i)?.is_some() {
+                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    "unprefixed guarded string literals are reserved for future use",
+                    start,
+                )));
+            }
+            Ok(Token::SomeOther)
+        }
+
         fn punctuation<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
             // <https://doc.rust-lang.org/reference/tokens.html#punctuation>
+            // hash '#' omitted
             let one = one_of([
                 '+', '-', '*', '/', '%', '^', '!', '&', '|', '=', '>', '<', '@', '_', '.', ',',
-                ';', ':', '#', '$', '?', '~',
+                ';', ':', '$', '?', '~',
             ]);
             let two = alt((
                 "&&", "||", "<<", ">>", "+=", "-=", "*=", "/=", "%=", "^=", "&=", "|=", "==", "!=",
