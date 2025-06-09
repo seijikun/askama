@@ -42,7 +42,7 @@ struct ThreeTimesOk2 {
 #[derive(Template)]
 #[template(
     ext = "",
-    source = "\u{c}{{vu7218/63e3666663-666/3330e633/63e3666663666/3333<c\"}\u{1}2}\0\"<c7}}2\"\"\"\"\0\0\0\0"
+    source = "\u{c}{{vu7218/63e3666663-666/3330e633/63e3666663666/3333<c\"}\u{1}2}\"<c7}}2\"\"\"\"\0\0\0\0"
 )]
 struct Regression {}
 

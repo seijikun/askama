@@ -32,8 +32,8 @@ error: comparison operators cannot be chained; consider using explicit parenthes
 
 error: comparison operators cannot be chained; consider using explicit parentheses, e.g.  `(_ < _) < _`
  --> <source attribute>:1:52
-       "<c\"}\u{1}2}\0\"<c7}}2\"\"\"\"\0\0\0\0"
+       "<c\"}\u{1}2}\"<c7}}2\"\"\"\"\0\0\0\0"
   --> tests/ui/comparator-chaining.rs:45:14
    |
-45 |     source = "\u{c}{{vu7218/63e3666663-666/3330e633/63e3666663666/3333<c\"}\u{1}2}\0\"<c7}}2\"\"\"\"\0\0\0\0"
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+45 |     source = "\u{c}{{vu7218/63e3666663-666/3330e633/63e3666663666/3333<c\"}\u{1}2}\"<c7}}2\"\"\"\"\0\0\0\0"
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

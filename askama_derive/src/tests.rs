@@ -1333,3 +1333,24 @@ fn test_macro_call_reserved_prefix() -> Result<(), syn::Error> {
     let _: syn::File = syn::parse2(output)?;
     Ok(())
 }
+
+#[test]
+fn test_macro_call_valid_raw_cstring() -> Result<(), syn::Error> {
+    // Regression test for <https://github.com/askama-rs/askama/issues/478>.
+    // CString literals must not contain NULs.
+
+    #[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/5489>
+    let input = quote! {
+        #[template(ext = "", source = "{{ c\"\0\" }}")]
+//                                           ^^ NUL is not allowed in cstring literals
+        enum l {}
+    };
+    let output = derive_template(input, import_askama);
+    assert!(
+        output
+            .to_string()
+            .contains("null characters in C string literals are not supported")
+    );
+    let _: syn::File = syn::parse2(output)?;
+    Ok(())
+}

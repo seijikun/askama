@@ -275,11 +275,19 @@ impl<'a> Generator<'a, '_> {
             &WithSpan::new_without_span(Expr::StrLit(StrLit {
                 prefix: None,
                 content: "",
+                contains_null: false,
+                contains_unicode_character: false,
+                contains_unicode_escape: false,
+                contains_high_ascii: false,
             }));
         const PLURAL: &WithSpan<'static, Expr<'static>> =
             &WithSpan::new_without_span(Expr::StrLit(StrLit {
                 prefix: None,
                 content: "s",
+                contains_null: false,
+                contains_unicode_character: false,
+                contains_unicode_escape: false,
+                contains_high_ascii: false,
             }));
         const ARGUMENTS: &[&FilterArgument; 3] = &[
             FILTER_SOURCE,
@@ -494,7 +502,10 @@ impl<'a> Generator<'a, '_> {
 
         let [source, opt_escaper] = collect_filter_args(ctx, "escape", node, args, ARGUMENTS)?;
         let opt_escaper = if !is_argument_placeholder(opt_escaper) {
-            let Expr::StrLit(StrLit { prefix, content }) = **opt_escaper else {
+            let Expr::StrLit(StrLit {
+                prefix, content, ..
+            }) = **opt_escaper
+            else {
                 return Err(ctx.generate_error("invalid escaper type for escape filter", node));
             };
             if let Some(prefix) = prefix {

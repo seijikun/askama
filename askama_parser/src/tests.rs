@@ -237,6 +237,10 @@ fn test_parse_var_call() {
                     WithSpan::no_span(Expr::StrLit(StrLit {
                         content: "123",
                         prefix: None,
+                        contains_null: false,
+                        contains_unicode_character: false,
+                        contains_unicode_escape: false,
+                        contains_high_ascii: false,
                     })),
                     WithSpan::no_span(int_lit("3"))
                 ],
@@ -283,6 +287,10 @@ fn test_parse_path_call() {
                     WithSpan::no_span(Expr::StrLit(StrLit {
                         content: "123",
                         prefix: None,
+                        contains_null: false,
+                        contains_unicode_character: false,
+                        contains_unicode_escape: false,
+                        contains_high_ascii: false,
                     })),
                     WithSpan::no_span(int_lit("3"))
                 ],
