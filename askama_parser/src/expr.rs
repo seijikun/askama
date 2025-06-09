@@ -12,8 +12,8 @@ use winnow::token::one_of;
 use crate::node::CondTest;
 use crate::{
     CharLit, ErrorContext, Level, Num, ParseErr, ParseResult, PathOrIdentifier, Span, StrLit,
-    WithSpan, char_lit, filter, identifier, keyword, num_lit, path_or_identifier, skip_ws0,
-    skip_ws1, str_lit, ws,
+    StrPrefix, WithSpan, char_lit, filter, identifier, keyword, num_lit, path_or_identifier,
+    skip_ws0, skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -773,12 +773,12 @@ impl<'a> Suffix<'a> {
         fn token<'a>(i: &mut &'a str) -> ParseResult<'a, Token> {
             // <https://doc.rust-lang.org/reference/tokens.html>
             let some_other = alt((
-                // keywords + (raw) identifiers + raw strings
-                identifier_or_prefixed_string,
                 // literals
                 Expr::char.value(Token::SomeOther),
                 Expr::str.value(Token::SomeOther),
                 Expr::num.value(Token::SomeOther),
+                // keywords + (raw) identifiers + raw strings
+                identifier_or_prefixed_string.value(Token::SomeOther),
                 // lifetimes
                 ('\'', identifier, not(peek('\''))).value(Token::SomeOther),
                 // punctuations
@@ -788,51 +788,96 @@ impl<'a> Suffix<'a> {
             alt((open.map(Token::Open), close.map(Token::Close), some_other)).parse_next(i)
         }
 
-        fn identifier_or_prefixed_string<'a>(i: &mut &'a str) -> ParseResult<'a, Token> {
+        fn identifier_or_prefixed_string<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
+            // <https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str-raw.syntax>
+
             let prefix = identifier.parse_next(i)?;
-            if opt('#').parse_next(i)?.is_none() {
-                // a simple identifier
-                return Ok(Token::SomeOther);
+            let hashes: usize = repeat(.., '#').parse_next(i)?;
+            if hashes >= 256 {
+                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    "a maximum of 255 hashes `#` are allowed with raw strings",
+                    prefix,
+                )));
             }
 
-            match prefix {
+            let str_kind = match prefix {
                 // raw cstring or byte slice
-                "cr" | "br" => {}
+                "br" => Some(StrPrefix::Binary),
+                "cr" => Some(StrPrefix::CLike),
                 // raw string string or identifier
-                "r" => {
-                    if opt(identifier).parse_next(i)?.is_some() {
-                        return Ok(Token::SomeOther);
-                    }
-                }
+                "r" => None,
+                // a simple identifier
+                _ if hashes == 0 => return Ok(()),
                 // reserved prefix: reject
                 _ => {
                     return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                        format!(
-                            "reserved prefix `{}#`, only `r#` is allowed",
-                            prefix.escape_debug(),
-                        ),
+                        format!("reserved prefix `{}#`", prefix.escape_debug()),
                         prefix,
                     )));
                 }
-            }
-
-            let hashes: usize = repeat(.., '#').parse_next(i)?;
-            if opt('"').parse_next(i)?.is_none() {
-                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                    "raw prefix `r#` is only allowed with raw identifiers and raw strings",
-                    prefix,
-                )));
-            }
-
-            let Some((_, j)) = i.split_once(&format!("\"#{:#<hashes$}", "")) else {
-                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                    "unterminated raw string",
-                    prefix,
-                )));
             };
-            *i = j;
 
-            Ok(Token::SomeOther)
+            if opt('"').parse_next(i)?.is_some() {
+                // got a raw string
+
+                let Some((inner, j)) = i.split_once(&format!("\"{:#<hashes$}", "")) else {
+                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        "unterminated raw string",
+                        prefix,
+                    )));
+                };
+                *i = j;
+
+                let msg = match str_kind {
+                    Some(StrPrefix::Binary) => inner
+                        .bytes()
+                        .any(|b| !b.is_ascii())
+                        .then_some("binary string literals must not contain non-ASCII characters"),
+                    Some(StrPrefix::CLike) => inner
+                        .bytes()
+                        .any(|b| b == 0)
+                        .then_some("cstring literals must not contain NUL characters"),
+                    None => None,
+                };
+                if let Some(msg) = msg {
+                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(msg, prefix)));
+                }
+
+                Ok(())
+            } else if hashes == 0 {
+                // a simple identifier
+                Ok(())
+            } else if opt(identifier).parse_next(i)?.is_some() {
+                // got a raw identifier
+
+                if str_kind.is_some() {
+                    // an invalid raw identifier like `cr#async`
+                    Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        format!(
+                            "reserved prefix `{}#`, only `r#` is allowed with raw identifiers",
+                            prefix.escape_debug(),
+                        ),
+                        prefix,
+                    )))
+                } else if hashes > 1 {
+                    // an invalid raw identifier like `r##async`
+                    Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        "only one `#` is allowed in raw identifier delimitation",
+                        prefix,
+                    )))
+                } else {
+                    // a raw identifier like `r#async`
+                    Ok(())
+                }
+            } else {
+                Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    format!(
+                        "prefix `{}#` is only allowed with raw identifiers and raw strings",
+                        prefix.escape_debug(),
+                    ),
+                    prefix,
+                )))
+            }
         }
 
         fn hash<'a>(i: &mut &'a str) -> ParseResult<'a, Token> {
