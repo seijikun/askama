@@ -7,7 +7,6 @@ use winnow::combinator::{
     alt, cut_err, fail, not, opt, peek, preceded, repeat, separated, terminated,
 };
 use winnow::error::ParserError as _;
-use winnow::token::one_of;
 
 use crate::node::CondTest;
 use crate::{
@@ -895,16 +894,36 @@ impl<'a> Suffix<'a> {
         fn punctuation<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
             // <https://doc.rust-lang.org/reference/tokens.html#punctuation>
             // hash '#' omitted
-            let one = one_of([
-                '+', '-', '*', '/', '%', '^', '!', '&', '|', '=', '>', '<', '@', '_', '.', ',',
-                ';', ':', '$', '?', '~',
-            ]);
-            let two = alt((
+
+            const ONE_CHAR: &[u8] = b"+-*/%^!&|=><@_.,;:$?~";
+            const TWO_CHARS: &[&str] = &[
                 "&&", "||", "<<", ">>", "+=", "-=", "*=", "/=", "%=", "^=", "&=", "|=", "==", "!=",
                 ">=", "<=", "..", "::", "->", "=>", "<-",
-            ));
-            let three = alt(("<<=", ">>=", "...", "..="));
-            alt((three.value(()), two.value(()), one.value(()))).parse_next(i)
+            ];
+            const THREE_CHARS: &[&str] = &["<<=", ">>=", "...", "..="];
+
+            // need to check long to short
+            if let Some((head, tail)) = i.split_at_checked(3) {
+                if THREE_CHARS.contains(&head) {
+                    *i = tail;
+                    return Ok(());
+                }
+            }
+            if let Some((head, tail)) = i.split_at_checked(2) {
+                if TWO_CHARS.contains(&head) {
+                    *i = tail;
+                    return Ok(());
+                }
+            }
+            if let Some((head, tail)) = i.split_at_checked(1) {
+                if let [head] = head.as_bytes() {
+                    if ONE_CHAR.contains(head) {
+                        *i = tail;
+                        return Ok(());
+                    }
+                }
+            }
+            fail(i)
         }
 
         fn open<'a>(i: &mut &'a str) -> ParseResult<'a, Group> {
