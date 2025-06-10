@@ -19,10 +19,12 @@ use std::sync::Arc;
 use std::{fmt, str};
 
 use winnow::ascii::take_escaped;
-use winnow::combinator::{alt, cut_err, delimited, fail, not, opt, peek, preceded, repeat};
+use winnow::combinator::{
+    alt, cut_err, delimited, fail, not, opt, peek, preceded, repeat, terminated,
+};
 use winnow::error::FromExternalError;
-use winnow::stream::Stream as _;
-use winnow::token::{any, one_of, take_till, take_while};
+use winnow::stream::{AsChar, Stream as _};
+use winnow::token::{any, none_of, one_of, take_till, take_while};
 use winnow::{ModalParser, Parser};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
@@ -544,28 +546,166 @@ impl fmt::Display for StrPrefix {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct StrLit<'a> {
-    pub prefix: Option<StrPrefix>,
+    /// the unparsed (but validated) content
     pub content: &'a str,
-}
-
-fn str_lit_without_prefix<'a>(i: &mut &'a str) -> ParseResult<'a> {
-    let s = delimited(
-        '"',
-        opt(take_escaped(take_till(1.., ['\\', '"']), '\\', any)),
-        '"',
-    )
-    .parse_next(i)?;
-    Ok(s.unwrap_or_default())
+    /// whether the string literal is unprefixed, a cstring or binary slice
+    pub prefix: Option<StrPrefix>,
+    /// contains a NUL character, either escaped `'\0'` or the very characters;
+    /// not allowed in cstring literals
+    pub contains_null: bool,
+    /// contains a non-ASCII character, either as `\u{123456}` or as an unescaped character;
+    /// not allowed in binary slices
+    pub contains_unicode_character: bool,
+    /// contains unicode escape sequences like `\u{12}` (regardless of its range);
+    /// not allowed in binary slices
+    pub contains_unicode_escape: bool,
+    /// contains a non-ASCII range escape sequence like `\x80`;
+    /// not allowed in unprefix strings
+    pub contains_high_ascii: bool,
 }
 
 fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
-    let (prefix, content) = (opt(alt(('b', 'c'))), str_lit_without_prefix).parse_next(i)?;
-    let prefix = match prefix {
-        Some('b') => Some(StrPrefix::Binary),
-        Some('c') => Some(StrPrefix::CLike),
-        _ => None,
+    // <https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str.syntax>
+
+    fn inner<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum Sequence<'a> {
+            Text(&'a str),
+            Close,
+            Escape,
+        }
+
+        let start = *i;
+        let mut contains_null = false;
+        let mut contains_unicode_character = false;
+        let mut contains_unicode_escape = false;
+        let mut contains_high_ascii = false;
+
+        while !i.is_empty() {
+            let seq = alt((
+                repeat::<_, _, (), _, _>(1.., none_of(['\\', '"']))
+                    .take()
+                    .map(Sequence::Text),
+                '\\'.value(Sequence::Escape),
+                peek('"').value(Sequence::Close),
+            ))
+            .parse_next(i)?;
+
+            match seq {
+                Sequence::Text(s) => {
+                    contains_unicode_character =
+                        contains_unicode_character || s.bytes().any(|c: u8| !c.is_ascii());
+                    contains_null = contains_null || s.bytes().any(|c: u8| c == 0);
+                    continue;
+                }
+                Sequence::Close => break,
+                Sequence::Escape => {}
+            }
+
+            match any.parse_next(i)? {
+                '\'' | '"' | 'n' | 'r' | 't' | '\\' => continue,
+                '0' => {
+                    contains_null = true;
+                    continue;
+                }
+                'x' => {
+                    let code = take_while(2, AsChar::is_hex_digit).parse_next(i)?;
+                    match u8::from_str_radix(code, 16).unwrap() {
+                        0 => contains_null = true,
+                        128.. => contains_high_ascii = true,
+                        _ => {}
+                    }
+                }
+                'u' => {
+                    contains_unicode_escape = true;
+                    let code = delimited('{', take_while(1..6, AsChar::is_hex_digit), '}')
+                        .parse_next(i)?;
+                    match u32::from_str_radix(code, 16).unwrap() {
+                        0 => contains_null = true,
+                        0xd800..0xe000 => {
+                            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                                "unicode escape must not be a surrogate",
+                                start,
+                            )));
+                        }
+                        128.. => contains_unicode_character = true,
+                        _ => {}
+                    }
+                }
+                _ => return fail(i),
+            }
+        }
+
+        Ok(StrLit {
+            content: "",
+            prefix: None,
+            contains_null,
+            contains_unicode_character,
+            contains_unicode_escape,
+            contains_high_ascii,
+        })
+    }
+
+    let start = *i;
+
+    let prefix = terminated(
+        opt(alt((
+            'b'.value(StrPrefix::Binary),
+            'c'.value(StrPrefix::CLike),
+        ))),
+        '"',
+    )
+    .parse_next(i)?;
+
+    let lit = opt(terminated(inner.with_taken(), '"')).parse_next(i)?;
+    let Some((mut lit, content)) = lit else {
+        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            "unclosed or broken string",
+            start,
+        )));
     };
-    Ok(StrLit { prefix, content })
+    lit.content = content;
+    lit.prefix = prefix;
+
+    let msg = match prefix {
+        Some(StrPrefix::Binary) => {
+            if lit.contains_unicode_character {
+                Some("non-ASCII character in byte string literal")
+            } else if lit.contains_unicode_escape {
+                Some("unicode escape in byte string")
+            } else {
+                None
+            }
+        }
+        Some(StrPrefix::CLike) => lit
+            .contains_null
+            .then_some("null characters in C string literals are not supported"),
+        None => lit.contains_high_ascii.then_some("out of range hex escape"),
+    };
+    if let Some(msg) = msg {
+        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(msg, start)));
+    }
+
+    Ok(lit)
+}
+
+fn str_lit_without_prefix<'a>(i: &mut &'a str) -> ParseResult<'a> {
+    let start = *i;
+    let lit = str_lit.parse_next(i)?;
+
+    let kind = match lit.prefix {
+        Some(StrPrefix::Binary) => Some("binary slice"),
+        Some(StrPrefix::CLike) => Some("cstring"),
+        None => None,
+    };
+    if let Some(kind) = kind {
+        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            format!("expected an unprefixed normal string, not a {kind}"),
+            start,
+        )));
+    }
+
+    Ok(lit.content)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1478,7 +1618,11 @@ mod test {
                 "",
                 StrLit {
                     prefix: Some(StrPrefix::Binary),
-                    content: "hello"
+                    content: "hello",
+                    contains_null: false,
+                    contains_unicode_character: false,
+                    contains_unicode_escape: false,
+                    contains_high_ascii: false,
                 }
             )
         );
@@ -1488,7 +1632,11 @@ mod test {
                 "",
                 StrLit {
                     prefix: Some(StrPrefix::CLike),
-                    content: "hello"
+                    content: "hello",
+                    contains_null: false,
+                    contains_unicode_character: false,
+                    contains_unicode_escape: false,
+                    contains_high_ascii: false,
                 }
             )
         );

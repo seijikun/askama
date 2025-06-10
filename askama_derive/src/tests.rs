@@ -1278,12 +1278,12 @@ fn test_macro_names_that_need_escaping() {
 }
 
 #[test]
-#[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/6565>
 fn test_macro_calls_need_proper_tokens() -> Result<(), syn::Error> {
     // Regression test for fuzzed error <https://github.com/askama-rs/askama/issues/459>.
     // Macro calls can contains any valid tokens, but only valid tokens.
     // Invalid tokens will be rejected by rust, so we must not emit them.
 
+    #[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/5489>
     let input = quote! {
         #[template(
             ext = "",
@@ -1294,7 +1294,11 @@ fn test_macro_calls_need_proper_tokens() -> Result<(), syn::Error> {
         struct f {}
     };
     let output = derive_template(input, import_askama);
-    assert!(output.to_string().contains("expected valid tokens in macro call"));
+    assert!(
+        output
+            .to_string()
+            .contains("expected valid tokens in macro call")
+    );
     let _: syn::File = syn::parse2(output)?;
     Ok(())
 }
@@ -1311,7 +1315,7 @@ fn test_macro_call_raw_prefix_without_data() -> Result<(), syn::Error> {
     assert!(
         output
             .to_string()
-            .contains("raw prefix `r#` is only allowed with raw identifiers and raw strings")
+            .contains("prefix `r#` is only allowed with raw identifiers and raw strings")
     );
     let _: syn::File = syn::parse2(output)?;
     Ok(())
@@ -1325,10 +1329,27 @@ fn test_macro_call_reserved_prefix() -> Result<(), syn::Error> {
         enum q {}
     };
     let output = derive_template(input, import_askama);
+    assert!(output.to_string().contains("reserved prefix `hello#`"));
+    let _: syn::File = syn::parse2(output)?;
+    Ok(())
+}
+
+#[test]
+fn test_macro_call_valid_raw_cstring() -> Result<(), syn::Error> {
+    // Regression test for <https://github.com/askama-rs/askama/issues/478>.
+    // CString literals must not contain NULs.
+
+    #[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/5489>
+    let input = quote! {
+        #[template(ext = "", source = "{{ c\"\0\" }}")]
+//                                           ^^ NUL is not allowed in cstring literals
+        enum l {}
+    };
+    let output = derive_template(input, import_askama);
     assert!(
         output
             .to_string()
-            .contains("reserved prefix `hello#`, only `r#` is allowed")
+            .contains("null characters in C string literals are not supported")
     );
     let _: syn::File = syn::parse2(output)?;
     Ok(())

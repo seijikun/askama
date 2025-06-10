@@ -394,6 +394,7 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
         Expr::StrLit(StrLit {
             prefix: None,
             content,
+            ..
         }) => {
             if content.find('\\').is_none() {
                 // if the literal does not contain any backslashes, then it does not need unescaping

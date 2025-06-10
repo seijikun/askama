@@ -1,0 +1,111 @@
+error: cstring literals must not contain NUL characters
+ --> <source attribute>:1:6
+       "cr#\"\0\"#) }}"
+ --> tests/ui/raw-prefix.rs:9:14
+  |
+9 |     source = "{{ z!(cr#\"\0\"#) }}",
+  |              ^^^^^^^^^^^^^^^^^^^^^^
+
+error: cstring literals must not contain NUL characters
+ --> <source attribute>:1:6
+       "cr##\"\0\"##) }}"
+  --> tests/ui/raw-prefix.rs:16:14
+   |
+16 |     source = "{{ z!(cr##\"\0\"##) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cstring literals must not contain NUL characters
+ --> <source attribute>:1:6
+       "cr###\"\0\"###) }}"
+  --> tests/ui/raw-prefix.rs:23:14
+   |
+23 |     source = "{{ z!(cr###\"\0\"###) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: binary string literals must not contain non-ASCII characters
+ --> <source attribute>:1:6
+       "br#\"😶\u{200d}🌫\u{fe0f}\"#) }}"
+  --> tests/ui/raw-prefix.rs:32:14
+   |
+32 |     source = "{{ z!(br#\"😶🌫️\"#) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: binary string literals must not contain non-ASCII characters
+ --> <source attribute>:1:6
+       "br##\"😶\u{200d}🌫\u{fe0f}\"##) }}"
+  --> tests/ui/raw-prefix.rs:39:14
+   |
+39 |     source = "{{ z!(br##\"😶🌫️\"##) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: binary string literals must not contain non-ASCII characters
+ --> <source attribute>:1:6
+       "br###\"😶\u{200d}🌫\u{fe0f}\"###) }}"
+  --> tests/ui/raw-prefix.rs:46:14
+   |
+46 |     source = "{{ z!(br###\"😶🌫️\"###) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: reserved prefix `br#`, only `r#` is allowed with raw identifiers
+ --> <source attribute>:1:6
+       "br#async) }}"
+  --> tests/ui/raw-prefix.rs:55:14
+   |
+55 |     source = "{{ z!(br#async) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^
+
+error: reserved prefix `cr#`, only `r#` is allowed with raw identifiers
+ --> <source attribute>:1:6
+       "cr#async) }}"
+  --> tests/ui/raw-prefix.rs:62:14
+   |
+62 |     source = "{{ z!(cr#async) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^
+
+error: only one `#` is allowed in raw identifier delimitation
+ --> <source attribute>:1:6
+       "r##async) }}"
+  --> tests/ui/raw-prefix.rs:69:14
+   |
+69 |     source = "{{ z!(r##async) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^
+
+error: reserved prefix `br#`, only `r#` is allowed with raw identifiers
+ --> <source attribute>:1:6
+       "br##async) }}"
+  --> tests/ui/raw-prefix.rs:76:14
+   |
+76 |     source = "{{ z!(br##async) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^
+
+error: reserved prefix `cr#`, only `r#` is allowed with raw identifiers
+ --> <source attribute>:1:6
+       "cr##async) }}"
+  --> tests/ui/raw-prefix.rs:83:14
+   |
+83 |     source = "{{ z!(cr##async) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^
+
+error: reserved prefix `hello#`
+ --> <source attribute>:1:6
+       "hello#world) }}"
+  --> tests/ui/raw-prefix.rs:90:14
+   |
+90 |     source = "{{ z!(hello#world) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: reserved prefix `hello#`
+ --> <source attribute>:1:6
+       "hello##world) }}"
+  --> tests/ui/raw-prefix.rs:97:14
+   |
+97 |     source = "{{ z!(hello##world) }}",
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: a maximum of 255 hashes `#` are allowed with raw strings
+ --> testing/templates/macro-call-raw-string-many-hashes.html:1:6
+       "hello###########################################################################"...
+   --> tests/ui/raw-prefix.rs:105:19
+    |
+105 | #[template(path = "macro-call-raw-string-many-hashes.html")]
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
