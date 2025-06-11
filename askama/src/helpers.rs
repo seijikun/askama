@@ -43,11 +43,11 @@ where
 
     #[inline]
     fn next(&mut self) -> Option<(<I as Iterator>::Item, LoopItem)> {
-        self.iter.next().map(|(index, item)| {
+        self.iter.next().map(|(index0, item)| {
             (
                 item,
                 LoopItem {
-                    index,
+                    index0,
                     last: self.iter.peek().is_none(),
                 },
             )
@@ -57,7 +57,7 @@ where
 
 #[derive(Copy, Clone)]
 pub struct LoopItem {
-    pub index: usize,
+    pub index0: usize,
     pub last: bool,
 }
 
