@@ -402,25 +402,22 @@ impl<'a> Generator<'a, '_> {
         obj: &WithSpan<'a, Expr<'a>>,
         attr: &Attr<'a>,
     ) -> Result<DisplayWrap, CompileError> {
-        if let Expr::Var(name) = **obj {
-            if name == "loop" {
-                if attr.name == "index" {
-                    buf.write("(__askama_item.index + 1)");
-                    return Ok(DisplayWrap::Unwrapped);
-                } else if attr.name == "index0" {
-                    buf.write("__askama_item.index");
-                    return Ok(DisplayWrap::Unwrapped);
-                } else if attr.name == "first" {
-                    buf.write("(__askama_item.index == 0)");
-                    return Ok(DisplayWrap::Unwrapped);
-                } else if attr.name == "last" {
-                    buf.write("__askama_item.last");
-                    return Ok(DisplayWrap::Unwrapped);
-                } else {
-                    return Err(ctx.generate_error("unknown loop variable", obj.span()));
+        if let Expr::Var("loop") = **obj {
+            buf.write(match attr.name {
+                "index0" => "__askama_item.index0",
+                "index" => "(__askama_item.index0 + 1)",
+                "first" => "(__askama_item.index0 == 0)",
+                "last" => "__askama_item.last",
+                name => {
+                    return Err(ctx.generate_error(
+                        format!("unknown loop variable `{}`", name.escape_debug()),
+                        obj.span(),
+                    ));
                 }
-            }
+            });
+            return Ok(DisplayWrap::Unwrapped);
         }
+
         self.visit_expr(ctx, buf, obj)?;
         buf.write(format_args!(".{}", normalize_identifier(attr.name)));
         self.visit_call_generics(buf, &attr.generics);
@@ -514,11 +511,11 @@ impl<'a> Generator<'a, '_> {
                                 buf.write(
                                 "\
                                     );\
-                                    let _len = _cycle.len();\
-                                    if _len == 0 {\
+                                    let __askama_len = _cycle.len();\
+                                    if __askama_len == 0 {\
                                         return askama::helpers::core::result::Result::Err(askama::Error::Fmt);\
                                     }\
-                                    _cycle[__askama_item.index % _len]\
+                                    _cycle[__askama_item.index0 % __askama_len]\
                                 })",
                             );
                             }
