@@ -149,65 +149,6 @@ fn flush_linebreaksbr(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Re
     dest.write_str(&s.replace('\n', "<br/>"))
 }
 
-/// Replaces only paragraph breaks in plain text with appropriate HTML
-///
-/// A new line followed by a blank line becomes a paragraph break `<p>`.
-/// Paragraph tags only wrap content; empty paragraphs are removed.
-/// No `<br/>` tags are added.
-///
-/// ```
-/// # #[cfg(feature = "code-in-doc")] {
-/// # use askama::Template;
-/// /// ```jinja
-/// /// {{ lines|paragraphbreaks }}
-/// /// ```
-/// #[derive(Template)]
-/// #[template(ext = "html", in_doc = true)]
-/// struct Example<'a> {
-///     lines: &'a str,
-/// }
-///
-/// assert_eq!(
-///     Example { lines: "Foo\nBar\n\nBaz" }.to_string(),
-///     "<p>Foo\nBar</p><p>Baz</p>"
-/// );
-/// # }
-/// ```
-#[inline]
-pub fn paragraphbreaks<S: fmt::Display>(
-    source: S,
-) -> Result<HtmlSafeOutput<Paragraphbreaks<S>>, Infallible> {
-    Ok(HtmlSafeOutput(Paragraphbreaks(source)))
-}
-
-pub struct Paragraphbreaks<S>(S);
-
-impl<S: fmt::Display> fmt::Display for Paragraphbreaks<S> {
-    #[inline]
-    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut buffer;
-        flush_paragraphbreaks(dest, try_to_str!(self.0 => buffer))
-    }
-}
-
-impl<S: FastWritable> FastWritable for Paragraphbreaks<S> {
-    #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn crate::Values,
-    ) -> crate::Result<()> {
-        let mut buffer = String::new();
-        self.0.write_into(&mut buffer, values)?;
-        Ok(flush_paragraphbreaks(dest, &buffer)?)
-    }
-}
-
-fn flush_paragraphbreaks(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
-    let linebroken = s.replace("\n\n", "</p><p>").replace("<p></p>", "");
-    write!(dest, "<p>{linebroken}</p>")
-}
-
 /// Converts to lowercase
 ///
 /// ```
@@ -606,24 +547,6 @@ mod tests {
         assert_eq!(
             linebreaksbr("Foo\nBar\n\nBaz").unwrap().to_string(),
             "Foo<br/>Bar<br/><br/>Baz"
-        );
-    }
-
-    #[test]
-    fn test_paragraphbreaks() {
-        assert_eq!(
-            paragraphbreaks("Foo\nBar Baz").unwrap().to_string(),
-            "<p>Foo\nBar Baz</p>"
-        );
-        assert_eq!(
-            paragraphbreaks("Foo\nBar\n\nBaz").unwrap().to_string(),
-            "<p>Foo\nBar</p><p>Baz</p>"
-        );
-        assert_eq!(
-            paragraphbreaks("Foo\n\n\n\n\nBar\n\nBaz")
-                .unwrap()
-                .to_string(),
-            "<p>Foo</p><p>\nBar</p><p>Baz</p>"
         );
     }
 

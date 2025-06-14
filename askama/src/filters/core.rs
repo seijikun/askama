@@ -641,41 +641,94 @@ impl<'a> fmt::Write for WordCountWriter<'a> {
 /// # }
 /// ```
 #[inline]
-pub fn linebreaks<S: fmt::Display>(source: S) -> Result<HtmlSafeOutput<Linebreaks<S>>, Infallible> {
-    Ok(HtmlSafeOutput(Linebreaks(source)))
+pub fn linebreaks<S: fmt::Display>(
+    source: S,
+) -> Result<HtmlSafeOutput<NewlineCounting<S>>, Infallible> {
+    Ok(HtmlSafeOutput(NewlineCounting {
+        source,
+        one: "<br/>",
+    }))
 }
 
-pub struct Linebreaks<S>(S);
+/// Replaces only paragraph breaks in plain text with appropriate HTML
+///
+/// A new line followed by a blank line becomes a paragraph break `<p>`.
+/// Paragraph tags only wrap content; empty paragraphs are removed.
+/// No `<br/>` tags are added.
+///
+/// ```
+/// # #[cfg(feature = "code-in-doc")] {
+/// # use askama::Template;
+/// /// ```jinja
+/// /// {{ lines|paragraphbreaks }}
+/// /// ```
+/// #[derive(Template)]
+/// #[template(ext = "html", in_doc = true)]
+/// struct Example<'a> {
+///     lines: &'a str,
+/// }
+///
+/// assert_eq!(
+///     Example { lines: "Foo\nBar\n\nBaz" }.to_string(),
+///     "<p>Foo\nBar</p><p>Baz</p>"
+/// );
+/// # }
+/// ```
+#[inline]
+pub fn paragraphbreaks<S: fmt::Display>(
+    source: S,
+) -> Result<HtmlSafeOutput<NewlineCounting<S>>, Infallible> {
+    Ok(HtmlSafeOutput(NewlineCounting { source, one: "\n" }))
+}
 
-impl<S: fmt::Display> fmt::Display for Linebreaks<S> {
-    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
-        dest.write_str("<p>")?;
-        let mut formatter = LinebreakFormatter { dest, counter: -1 };
-        write!(formatter, "{}", self.0)?;
-        formatter.dest.write_str("</p>")
+pub struct NewlineCounting<S> {
+    source: S,
+    one: &'static str,
+}
+
+impl<S> NewlineCounting<S> {
+    #[inline]
+    fn run<'a, F, W, E>(&self, dest: &'a mut W, inner: F) -> Result<(), E>
+    where
+        W: fmt::Write + ?Sized,
+        F: FnOnce(&mut NewlineCountingFormatter<'a, W>) -> Result<(), E>,
+        E: From<fmt::Error>,
+    {
+        let mut formatter = NewlineCountingFormatter {
+            dest,
+            counter: -1,
+            one: self.one,
+        };
+        formatter.dest.write_str("<p>")?;
+        inner(&mut formatter)?;
+        formatter.dest.write_str("</p>")?;
+        Ok(())
     }
 }
 
-impl<S: FastWritable> FastWritable for Linebreaks<S> {
+impl<S: fmt::Display> fmt::Display for NewlineCounting<S> {
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.run(dest, |f| write!(f, "{}", self.source))
+    }
+}
+
+impl<S: FastWritable> FastWritable for NewlineCounting<S> {
     fn write_into<W: fmt::Write + ?Sized>(
         &self,
         dest: &mut W,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        dest.write_str("<p>")?;
-        let mut formatter = LinebreakFormatter { dest, counter: -1 };
-        self.0.write_into(&mut formatter, values)?;
-        dest.write_str("</p>")?;
-        Ok(())
+        self.run(dest, |f| self.source.write_into(f, values))
     }
 }
 
-struct LinebreakFormatter<'a, W: ?Sized> {
+struct NewlineCountingFormatter<'a, W: ?Sized> {
     dest: &'a mut W,
     counter: isize,
+    one: &'static str,
 }
 
-impl<W: fmt::Write + ?Sized> fmt::Write for LinebreakFormatter<'_, W> {
+impl<W: fmt::Write + ?Sized> fmt::Write for NewlineCountingFormatter<'_, W> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         if s.is_empty() {
             return Ok(());
@@ -693,7 +746,7 @@ impl<W: fmt::Write + ?Sized> fmt::Write for LinebreakFormatter<'_, W> {
             if !line.is_empty() {
                 match replace(&mut self.counter, if has_eol { 1 } else { 0 }) {
                     ..=0 => {}
-                    1 => self.dest.write_str("<br/>")?,
+                    1 => self.dest.write_str(self.one)?,
                     2.. => self.dest.write_str("</p><p>")?,
                 }
                 self.dest.write_str(line)?;
@@ -825,6 +878,24 @@ mod tests {
         assert_eq!(
             linebreaks("Foo\nBar\n\nBaz").unwrap().to_string(),
             "<p>Foo<br/>Bar</p><p>Baz</p>"
+        );
+    }
+
+    #[test]
+    fn test_paragraphbreaks() {
+        assert_eq!(
+            paragraphbreaks("Foo\nBar Baz").unwrap().to_string(),
+            "<p>Foo\nBar Baz</p>"
+        );
+        assert_eq!(
+            paragraphbreaks("Foo\nBar\n\nBaz").unwrap().to_string(),
+            "<p>Foo\nBar</p><p>Baz</p>"
+        );
+        assert_eq!(
+            paragraphbreaks("Foo\n\n\n\n\nBar\n\nBaz")
+                .unwrap()
+                .to_string(),
+            "<p>Foo</p><p>Bar</p><p>Baz</p>"
         );
     }
 }
