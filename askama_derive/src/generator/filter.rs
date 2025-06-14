@@ -333,9 +333,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<'a, Expr<'a>>],
-        node: Span<'_>,
+        _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_filter_has_feature_alloc(ctx, "linebreaksbr", node)?;
         self.visit_linebreaks_filters(ctx, buf, "linebreaksbr", args)
     }
 

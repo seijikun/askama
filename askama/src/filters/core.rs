@@ -735,14 +735,7 @@ impl<W: fmt::Write + ?Sized> fmt::Write for NewlineCountingFormatter<'_, W> {
         }
 
         for line in s.split_inclusive('\n') {
-            let (has_eol, line) = if let Some(line) = line.strip_suffix("\r\n") {
-                (true, line)
-            } else if let Some(line) = line.strip_suffix('\n') {
-                (true, line)
-            } else {
-                (false, line)
-            };
-
+            let (has_eol, line) = strip_newline_suffix(line);
             if !line.is_empty() {
                 match replace(&mut self.counter, if has_eol { 1 } else { 0 }) {
                     ..=0 => {}
@@ -755,6 +748,79 @@ impl<W: fmt::Write + ?Sized> fmt::Write for NewlineCountingFormatter<'_, W> {
             }
         }
         Ok(())
+    }
+}
+
+/// Converts all newlines in a piece of plain text to HTML line breaks
+///
+/// ```
+/// # #[cfg(feature = "code-in-doc")] {
+/// # use askama::Template;
+/// /// ```jinja
+/// /// <div>{{ lines|linebreaksbr }}</div>
+/// /// ```
+/// #[derive(Template)]
+/// #[template(ext = "html", in_doc = true)]
+/// struct Example<'a> {
+///     lines: &'a str,
+/// }
+///
+/// assert_eq!(
+///     Example { lines: "a\nb\nc" }.to_string(),
+///     "<div>a<br/>b<br/>c</div>"
+/// );
+/// # }
+/// ```
+#[inline]
+pub fn linebreaksbr<S: fmt::Display>(
+    source: S,
+) -> Result<HtmlSafeOutput<Linebreaksbr<S>>, Infallible> {
+    Ok(HtmlSafeOutput(Linebreaksbr(source)))
+}
+
+pub struct Linebreaksbr<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Linebreaksbr<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(LinebreaksbrFormatter(dest), "{}", self.0)
+    }
+}
+
+struct LinebreaksbrFormatter<'a, W: ?Sized>(&'a mut W);
+
+impl<S: FastWritable> FastWritable for Linebreaksbr<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        self.0.write_into(&mut LinebreaksbrFormatter(dest), values)
+    }
+}
+
+impl<W: fmt::Write + ?Sized> fmt::Write for LinebreaksbrFormatter<'_, W> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for line in s.split_inclusive('\n') {
+            let (has_eol, line) = strip_newline_suffix(line);
+            self.0.write_str(line)?;
+            if has_eol {
+                self.0.write_str("<br/>")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Returns whether a newline suffix was stripped and the (maybe stripped) line.
+fn strip_newline_suffix(line: &str) -> (bool, &str) {
+    if let Some(line) = line.strip_suffix("\r\n") {
+        (true, line)
+    } else if let Some(line) = line.strip_suffix('\n') {
+        (true, line)
+    } else {
+        (false, line)
     }
 }
 
@@ -896,6 +962,15 @@ mod tests {
                 .unwrap()
                 .to_string(),
             "<p>Foo</p><p>Bar</p><p>Baz</p>"
+        );
+    }
+
+    #[test]
+    fn test_linebreaksbr() {
+        assert_eq!(linebreaksbr("Foo\nBar").unwrap().to_string(), "Foo<br/>Bar");
+        assert_eq!(
+            linebreaksbr("Foo\nBar\n\nBaz").unwrap().to_string(),
+            "Foo<br/>Bar<br/><br/>Baz"
         );
     }
 }
