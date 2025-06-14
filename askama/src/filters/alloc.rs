@@ -95,62 +95,6 @@ pub fn fmt() {}
 /// Compare with [fmt](./fn.fmt.html).
 pub fn format() {}
 
-/// Replaces line breaks in plain text with appropriate HTML
-///
-/// A single newline becomes an HTML line break `<br>` and a new line
-/// followed by a blank line becomes a paragraph break `<p>`.
-///
-/// ```
-/// # #[cfg(feature = "code-in-doc")] {
-/// # use askama::Template;
-/// /// ```jinja
-/// /// <div>{{ example|linebreaks }}</div>
-/// /// ```
-/// #[derive(Template)]
-/// #[template(ext = "html", in_doc = true)]
-/// struct Example<'a> {
-///     example: &'a str,
-/// }
-///
-/// assert_eq!(
-///     Example { example: "Foo\nBar\n\nBaz" }.to_string(),
-///     "<div><p>Foo<br/>Bar</p><p>Baz</p></div>"
-/// );
-/// # }
-/// ```
-#[inline]
-pub fn linebreaks<S: fmt::Display>(source: S) -> Result<HtmlSafeOutput<Linebreaks<S>>, Infallible> {
-    Ok(HtmlSafeOutput(Linebreaks(source)))
-}
-
-pub struct Linebreaks<S>(S);
-
-impl<S: fmt::Display> fmt::Display for Linebreaks<S> {
-    #[inline]
-    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut buffer;
-        flush_linebreaks(dest, try_to_str!(self.0 => buffer))
-    }
-}
-
-impl<S: FastWritable> FastWritable for Linebreaks<S> {
-    #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn crate::Values,
-    ) -> crate::Result<()> {
-        let mut buffer = String::new();
-        self.0.write_into(&mut buffer, values)?;
-        Ok(flush_linebreaks(dest, &buffer)?)
-    }
-}
-
-fn flush_linebreaks(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
-    let linebroken = s.replace("\n\n", "</p><p>").replace('\n', "<br/>");
-    write!(dest, "<p>{linebroken}</p>")
-}
-
 /// Converts all newlines in a piece of plain text to HTML line breaks
 ///
 /// ```
@@ -655,18 +599,6 @@ mod tests {
     use alloc::string::ToString;
 
     use super::*;
-
-    #[test]
-    fn test_linebreaks() {
-        assert_eq!(
-            linebreaks("Foo\nBar Baz").unwrap().to_string(),
-            "<p>Foo<br/>Bar Baz</p>"
-        );
-        assert_eq!(
-            linebreaks("Foo\nBar\n\nBaz").unwrap().to_string(),
-            "<p>Foo<br/>Bar</p><p>Baz</p>"
-        );
-    }
 
     #[test]
     fn test_linebreaksbr() {
