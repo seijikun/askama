@@ -617,7 +617,7 @@ impl<'a> fmt::Write for WordCountWriter<'a> {
     }
 }
 
-/// Replaces line breaks in plain text with appropriate HTML
+/// Replaces line breaks in plain text with appropriate HTML.
 ///
 /// A single newline becomes an HTML line break `<br>` and a new line
 /// followed by a blank line becomes a paragraph break `<p>`.
@@ -733,9 +733,7 @@ impl<W: fmt::Write + ?Sized> fmt::Write for NewlineCountingFormatter<'_, W> {
         if s.is_empty() {
             return Ok(());
         }
-
-        for line in s.split_inclusive('\n') {
-            let (has_eol, line) = strip_newline_suffix(line);
+        for (has_eol, line) in split_lines(s) {
             if !line.is_empty() {
                 match replace(&mut self.counter, if has_eol { 1 } else { 0 }) {
                     ..=0 => {}
@@ -751,7 +749,7 @@ impl<W: fmt::Write + ?Sized> fmt::Write for NewlineCountingFormatter<'_, W> {
     }
 }
 
-/// Converts all newlines in a piece of plain text to HTML line breaks
+/// Converts all newlines in a piece of plain text to HTML line breaks.
 ///
 /// ```
 /// # #[cfg(feature = "code-in-doc")] {
@@ -802,8 +800,10 @@ impl<S: FastWritable> FastWritable for Linebreaksbr<S> {
 
 impl<W: fmt::Write + ?Sized> fmt::Write for LinebreaksbrFormatter<'_, W> {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        for line in s.split_inclusive('\n') {
-            let (has_eol, line) = strip_newline_suffix(line);
+        if s.is_empty() {
+            return Ok(());
+        }
+        for (has_eol, line) in split_lines(s) {
             self.0.write_str(line)?;
             if has_eol {
                 self.0.write_str("<br/>")?;
@@ -813,15 +813,16 @@ impl<W: fmt::Write + ?Sized> fmt::Write for LinebreaksbrFormatter<'_, W> {
     }
 }
 
-/// Returns whether a newline suffix was stripped and the (maybe stripped) line.
-fn strip_newline_suffix(line: &str) -> (bool, &str) {
-    if let Some(line) = line.strip_suffix("\r\n") {
-        (true, line)
-    } else if let Some(line) = line.strip_suffix('\n') {
-        (true, line)
-    } else {
-        (false, line)
-    }
+/// Splits the input at `/\r?\n/g``; returns whether a newline suffix was stripped and the
+/// (maybe stripped) line.
+fn split_lines(s: &str) -> impl Iterator<Item = (bool, &str)> {
+    s.split_inclusive('\n').map(|line| {
+        if let Some(line) = line.strip_suffix('\n') {
+            (true, line.strip_suffix('\r').unwrap_or(line))
+        } else {
+            (false, line)
+        }
+    })
 }
 
 #[cfg(all(test, feature = "alloc"))]
