@@ -58,17 +58,10 @@ macro_rules! new_memchr_type {
     };
 }
 
-new_memchr_type!(Splitter1 split1_unchecked memchr a);
 new_memchr_type!(Splitter3 split3_unchecked memchr3 a b c);
 
 #[test]
 fn candidate_finder() {
-    assert_eq!(
-        Splitter1::new("test").split("abctefg"),
-        Some(("abc", "tefg")),
-    );
-    assert_eq!(Splitter1::new("xyz").split("abctefg"), None);
-
     assert_eq!(
         Splitter3::new("oof", "apples", "xyz").split("abctefg"),
         Some(("", "abctefg")),
