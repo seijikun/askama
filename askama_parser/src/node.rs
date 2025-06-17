@@ -6,13 +6,12 @@ use winnow::combinator::{
     separated_pair, terminated,
 };
 use winnow::stream::Stream as _;
-use winnow::token::{any, literal, rest, take_until};
+use winnow::token::{any, rest, take_until};
 use winnow::{ModalParser, Parser};
 
-use crate::memchr_splitter::Splitter3;
 use crate::{
     ErrorContext, Expr, Filter, ParseResult, Span, State, Target, WithSpan, filter, identifier,
-    is_rust_keyword, keyword, path_or_identifier, skip_till, skip_ws0, str_lit_without_prefix, ws,
+    is_rust_keyword, keyword, path_or_identifier, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -1121,30 +1120,21 @@ pub struct Lit<'a> {
 
 impl<'a> Lit<'a> {
     fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
-        let start = *i;
         not(eof).parse_next(i)?;
-
-        let candidate_finder = Splitter3::new(
-            s.syntax.block_start,
-            s.syntax.comment_start,
-            s.syntax.expr_start,
-        );
-        let p_start = alt((
-            literal(s.syntax.block_start),
-            literal(s.syntax.comment_start),
-            literal(s.syntax.expr_start),
+        let mut content = opt(take_until(
+            ..,
+            (
+                s.syntax.block_start,
+                s.syntax.comment_start,
+                s.syntax.expr_start,
+            ),
         ));
-
-        let content = opt(skip_till(candidate_finder, p_start).take()).parse_next(i)?;
-        let content = match content {
-            Some("") => {
-                // {block,comment,expr}_start follows immediately.
-                return fail.parse_next(i);
-            }
+        let content = match content.parse_next(i)? {
+            Some("") => return fail(i), // {block,comment,expr}_start follows immediately.
             Some(content) => content,
-            None => rest.parse_next(i)?, /* there is no {block,comment,expr}_start: take everything */
+            None => rest(i)?, // there is no {block,comment,expr}_start: take everything
         };
-        Ok(WithSpan::new(Self::split_ws_parts(content), start))
+        Ok(WithSpan::new(Self::split_ws_parts(content), content))
     }
 
     pub(crate) fn split_ws_parts(s: &'a str) -> Self {

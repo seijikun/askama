@@ -4,7 +4,6 @@
 
 pub mod ascii_str;
 pub mod expr;
-mod memchr_splitter;
 pub mod node;
 mod target;
 #[cfg(test)]
@@ -368,32 +367,6 @@ fn ws<'a, O>(
     inner: impl ModalParser<&'a str, O, ErrorContext<'a>>,
 ) -> impl ModalParser<&'a str, O, ErrorContext<'a>> {
     delimited(skip_ws0, inner, skip_ws0)
-}
-
-/// Skips input until `end` was found, but does not consume it.
-/// Returns tuple that would be returned when parsing `end`.
-fn skip_till<'a, 'b, O>(
-    candidate_finder: impl crate::memchr_splitter::Splitter,
-    end: impl ModalParser<&'a str, O, ErrorContext<'a>>,
-) -> impl ModalParser<&'a str, (&'a str, O), ErrorContext<'a>> {
-    let mut next = alt((end.map(Some), any.map(|_| None)));
-    move |i: &mut &'a str| loop {
-        *i = match candidate_finder.split(i) {
-            Some((_, i)) => i,
-            None => {
-                return Err(winnow::error::ErrMode::Backtrack(ErrorContext::new(
-                    "`end` not found`",
-                    *i,
-                )));
-            }
-        };
-        let exclusive = *i;
-        if let Some(lookahead) = next.parse_next(i)? {
-            let inclusive = *i;
-            *i = exclusive;
-            return Ok((inclusive, lookahead));
-        }
-    }
 }
 
 fn keyword(k: &str) -> impl ModalParser<&str, &str, ErrorContext<'_>> {
