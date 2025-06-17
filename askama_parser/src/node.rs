@@ -3,16 +3,15 @@ use std::str::{self, FromStr};
 
 use winnow::combinator::{
     alt, cut_err, delimited, empty, eof, fail, not, opt, peek, preceded, repeat, separated,
-    terminated,
+    separated_pair, terminated,
 };
 use winnow::stream::Stream as _;
-use winnow::token::{any, literal, rest, take_until};
+use winnow::token::{any, rest, take_until};
 use winnow::{ModalParser, Parser};
 
-use crate::memchr_splitter::{Splitter1, Splitter3};
 use crate::{
     ErrorContext, Expr, Filter, ParseResult, Span, State, Target, WithSpan, filter, identifier,
-    is_rust_keyword, keyword, path_or_identifier, skip_till, skip_ws0, str_lit_without_prefix, ws,
+    is_rust_keyword, keyword, path_or_identifier, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -1121,30 +1120,21 @@ pub struct Lit<'a> {
 
 impl<'a> Lit<'a> {
     fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
-        let start = *i;
         not(eof).parse_next(i)?;
-
-        let candidate_finder = Splitter3::new(
-            s.syntax.block_start,
-            s.syntax.comment_start,
-            s.syntax.expr_start,
-        );
-        let p_start = alt((
-            literal(s.syntax.block_start),
-            literal(s.syntax.comment_start),
-            literal(s.syntax.expr_start),
+        let mut content = opt(take_until(
+            ..,
+            (
+                s.syntax.block_start,
+                s.syntax.comment_start,
+                s.syntax.expr_start,
+            ),
         ));
-
-        let content = opt(skip_till(candidate_finder, p_start).take()).parse_next(i)?;
-        let content = match content {
-            Some("") => {
-                // {block,comment,expr}_start follows immediately.
-                return fail.parse_next(i);
-            }
+        let content = match content.parse_next(i)? {
+            Some("") => return fail(i), // {block,comment,expr}_start follows immediately.
             Some(content) => content,
-            None => rest.parse_next(i)?, /* there is no {block,comment,expr}_start: take everything */
+            None => rest(i)?, // there is no {block,comment,expr}_start: take everything
         };
-        Ok(WithSpan::new(Self::split_ws_parts(content), start))
+        Ok(WithSpan::new(Self::split_ws_parts(content), content))
     }
 
     pub(crate) fn split_ws_parts(s: &'a str) -> Self {
@@ -1168,33 +1158,52 @@ pub struct Raw<'a> {
 
 impl<'a> Raw<'a> {
     fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
-        let start = *i;
-        let endraw = (
-            |i: &mut _| s.tag_block_start(i),
-            opt(Whitespace::parse),
-            ws(keyword("endraw")), // sic: ignore `{% end %}` in raw blocks
-            opt(Whitespace::parse),
-            peek(|i: &mut _| s.tag_block_end(i)),
-        );
+        fn endraw<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, (Ws, &'a str)> {
+            let start = *i;
+            loop {
+                // find the string "endraw", strip any spaces before it, and look if there is a `{%`
+                let inner = take_until(.., "endraw").parse_next(i)?;
+                "endraw".parse_next(i)?;
 
+                let mut inner = inner.trim_ascii_end();
+                let pws = Whitespace::parse_char(inner.chars().next_back().unwrap_or_default());
+                if pws.is_some() {
+                    inner = &inner[..inner.len() - 1];
+                }
+                let Some(inner) = inner.strip_suffix(s.syntax.block_start) else {
+                    continue;
+                };
+
+                // We found `{% endraw`. Do we find `%}`, too?
+                *i = i.trim_ascii_start();
+                let nws = opt(Whitespace::parse).parse_next(i)?;
+                if opt(peek(s.syntax.block_end)).parse_next(i)?.is_none() {
+                    continue;
+                }
+
+                let inner_len = inner.as_bytes().as_ptr_range().end as usize
+                    - start.as_bytes().as_ptr_range().start as usize;
+                let inner = &start[..inner_len];
+                return Ok((Ws(pws, nws), inner));
+            }
+        }
+
+        let start = *i;
         let mut p = (
-            opt(Whitespace::parse),
-            ws(keyword("raw")),
+            terminated(opt(Whitespace::parse), ws(keyword("raw"))),
             cut_node(
                 Some("raw"),
-                (
+                separated_pair(
                     opt(Whitespace::parse),
                     |i: &mut _| s.tag_block_end(i),
-                    skip_till(Splitter1::new(s.syntax.block_start), endraw).with_taken(),
+                    |i: &mut _| endraw(i, s),
                 ),
             ),
         );
 
-        let (pws1, _, (nws1, _, ((new_i, (_, pws2, _, nws2, _)), contents))) = p.parse_next(i)?;
-        *i = new_i;
-        let lit = Lit::split_ws_parts(contents);
-        let ws1 = Ws(pws1, nws1);
-        let ws2 = Ws(pws2, nws2);
+        let (pws, (nws, (ws2, content))) = p.parse_next(i)?;
+        let lit = Lit::split_ws_parts(content);
+        let ws1 = Ws(pws, nws);
         Ok(WithSpan::new(Self { ws1, lit, ws2 }, start))
     }
 }

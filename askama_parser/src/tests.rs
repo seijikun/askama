@@ -1,6 +1,6 @@
 use winnow::Parser;
 
-use crate::node::{Lit, Whitespace, Ws};
+use crate::node::{Lit, Raw, Whitespace, Ws};
 use crate::{
     Ast, Expr, Filter, InnerSyntax, Node, Num, PathOrIdentifier, Span, StrLit, Syntax,
     SyntaxBuilder, WithSpan,
@@ -1444,7 +1444,7 @@ fn macro_calls_can_have_raw_prefixes() {
 
 #[test]
 fn macro_comments_in_macro_calls() {
-    // Related to issue <https://github.com/askama-rs/askama/issues/475>.
+    // Related to <https://issues.oss-fuzz.com/issues/425145246>.
     let syntax = Syntax::default();
 
     assert!(Ast::from_str("{{ e!(// hello) }}", None, &syntax).is_err());
@@ -1506,5 +1506,29 @@ fn macro_comments_in_macro_calls() {
             Ws(None, None),
             WithSpan::no_span(Expr::RustMacro(vec!["e"], "/*! hello */")),
         )],
+    );
+}
+
+#[test]
+fn test_raw() {
+    let syntax = Syntax::default();
+    let val = "hello {{ endraw %} my {%* endraw %} green {% endraw }} world";
+    assert_eq!(
+        Ast::from_str(
+            &format!("{{%+ raw -%}} {val} {{%~ endraw ~%}}"),
+            None,
+            &syntax
+        )
+        .unwrap()
+        .nodes,
+        vec![Node::Raw(WithSpan::no_span(Raw {
+            ws1: Ws(Some(Whitespace::Preserve), Some(Whitespace::Suppress)),
+            lit: Lit {
+                lws: " ",
+                val,
+                rws: " ",
+            },
+            ws2: Ws(Some(Whitespace::Minimize), Some(Whitespace::Minimize)),
+        }))],
     );
 }

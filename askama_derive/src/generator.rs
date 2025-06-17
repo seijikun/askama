@@ -634,8 +634,9 @@ impl<'a> WritableBuffer<'a> {
 impl<'a> Deref for WritableBuffer<'a> {
     type Target = [Writable<'a>];
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.buf[..]
+        self.buf.as_slice()
     }
 }
 
