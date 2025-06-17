@@ -229,6 +229,7 @@ pub(crate) struct SyntaxAndCache<'a> {
 impl<'a> Deref for SyntaxAndCache<'a> {
     type Target = Syntax<'a>;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.syntax
     }
@@ -240,6 +241,7 @@ struct OwnedSyntaxAndCacheKey(SyntaxAndCacheKey<'static>);
 impl Deref for OwnedSyntaxAndCacheKey {
     type Target = SyntaxAndCacheKey<'static>;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.0
     }

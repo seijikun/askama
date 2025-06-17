@@ -222,6 +222,7 @@ impl<'a, T> WithSpan<'a, T> {
 impl<T> Deref for WithSpan<'_, T> {
     type Target = T;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
