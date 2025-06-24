@@ -1,4 +1,5 @@
 use winnow::combinator::{alt, opt, peek, preceded, separated};
+use winnow::error::ErrMode;
 use winnow::token::one_of;
 use winnow::{ModalParser, Parser};
 
@@ -111,7 +112,7 @@ impl<'a> Target<'a> {
             if let [name] = path.as_slice() {
                 // If the path only contains one item, we need to check the name.
                 if !can_be_variable_name(name) {
-                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    return Err(ErrMode::Cut(ErrorContext::new(
                         format!("`{name}` cannot be used as an identifier"),
                         *name,
                     )));
@@ -119,7 +120,7 @@ impl<'a> Target<'a> {
             } else {
                 // Otherwise we need to check every element but the first.
                 if let Some(name) = path.iter().skip(1).find(|n| !can_be_variable_name(n)) {
-                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    return Err(ErrMode::Cut(ErrorContext::new(
                         format!("`{name}` cannot be used as an identifier"),
                         *name,
                     )));
@@ -162,7 +163,7 @@ impl<'a> Target<'a> {
         if let Some(rest) = rest {
             let chr = peek(ws(opt(one_of([',', ':'])))).parse_next(i)?;
             if let Some(chr) = chr {
-                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                return Err(ErrMode::Cut(ErrorContext::new(
                     format!(
                         "unexpected `{chr}` character after `..`\n\
                          note that in a named struct, `..` must come last to ignore other members"
@@ -172,7 +173,7 @@ impl<'a> Target<'a> {
             }
             if let Target::Rest(ref s) = rest.0 {
                 if s.inner.is_some() {
-                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    return Err(ErrMode::Cut(ErrorContext::new(
                         "`@ ..` cannot be used in struct",
                         s.span,
                     )));
@@ -190,7 +191,7 @@ impl<'a> Target<'a> {
 
         if src == "_" {
             *i = start;
-            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            return Err(ErrMode::Cut(ErrorContext::new(
                 "cannot use placeholder `_` as source in named struct",
                 *i,
             )));
@@ -213,22 +214,19 @@ impl<'a> Target<'a> {
     }
 }
 
-fn verify_name<'a>(
-    input: &'a str,
-    name: &'a str,
-) -> Result<Target<'a>, winnow::error::ErrMode<ErrorContext<'a>>> {
+fn verify_name<'a>(input: &'a str, name: &'a str) -> Result<Target<'a>, ErrMode<ErrorContext<'a>>> {
     if is_rust_keyword(name) {
-        Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        Err(ErrMode::Cut(ErrorContext::new(
             format!("cannot use `{name}` as a name: it is a rust keyword"),
             input,
         )))
     } else if !can_be_variable_name(name) {
-        Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        Err(ErrMode::Cut(ErrorContext::new(
             format!("`{name}` cannot be used as an identifier"),
             input,
         )))
     } else if name.starts_with("__askama") {
-        Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        Err(ErrMode::Cut(ErrorContext::new(
             format!("cannot use `{name}` as a name: it is reserved for `askama`"),
             input,
         )))
@@ -252,7 +250,7 @@ fn collect_targets<'a, T>(
 
     let targets = opt(separated(1.., one, ws(',')).map(|v: Vec<_>| v)).parse_next(i)?;
     let Some(targets) = targets else {
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        return Err(ErrMode::Cut(ErrorContext::new(
             "expected comma separated list of members",
             *i,
         )));
@@ -264,7 +262,7 @@ fn collect_targets<'a, T>(
             true => format!("expected member, or `{delim}` as terminator"),
             false => format!("expected `,` for more members, or `{delim}` as terminator"),
         };
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(msg, *i)));
+        return Err(ErrMode::Cut(ErrorContext::new(msg, *i)));
     }
 
     let singleton = !has_comma && targets.len() == 1;
@@ -281,13 +279,13 @@ fn only_one_rest_pattern<'a>(
     for target in &targets {
         if let Target::Rest(s) = target {
             if !allow_named_rest && s.inner.is_some() {
-                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                return Err(ErrMode::Cut(ErrorContext::new(
                     "`@ ..` is only allowed in slice patterns",
                     s.span,
                 )));
             }
             if found_rest {
-                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                return Err(ErrMode::Cut(ErrorContext::new(
                     format!("`..` can only be used once per {type_kind} pattern"),
                     s.span,
                 )));

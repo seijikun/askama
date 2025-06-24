@@ -21,7 +21,7 @@ use winnow::ascii::take_escaped;
 use winnow::combinator::{
     alt, cut_err, delimited, fail, not, opt, peek, preceded, repeat, terminated,
 };
-use winnow::error::FromExternalError;
+use winnow::error::{ErrMode, FromExternalError};
 use winnow::stream::{AsChar, Stream as _};
 use winnow::token::{any, none_of, one_of, take_till, take_while};
 use winnow::{ModalParser, Parser};
@@ -122,10 +122,10 @@ impl<'a> Ast<'a> {
         };
         match Node::parse_template(&mut src, &state) {
             Ok(nodes) if src.is_empty() => Ok(Self { nodes }),
-            Ok(_) | Err(winnow::error::ErrMode::Incomplete(_)) => unreachable!(),
+            Ok(_) | Err(ErrMode::Incomplete(_)) => unreachable!(),
             Err(
-                winnow::error::ErrMode::Backtrack(ErrorContext { span, message, .. })
-                | winnow::error::ErrMode::Cut(ErrorContext { span, message, .. }),
+                ErrMode::Backtrack(ErrorContext { span, message, .. })
+                | ErrMode::Cut(ErrorContext { span, message, .. }),
             ) => Err(ParseError {
                 message,
                 offset: span.offset_from(start).unwrap_or_default(),
@@ -287,7 +287,7 @@ impl fmt::Display for ParseError {
     }
 }
 
-pub(crate) type ParseErr<'a> = winnow::error::ErrMode<ErrorContext<'a>>;
+pub(crate) type ParseErr<'a> = ErrMode<ErrorContext<'a>>;
 pub(crate) type ParseResult<'a, T = &'a str> = Result<T, ParseErr<'a>>;
 
 /// This type is used to handle `nom` errors and in particular to add custom error messages.
@@ -313,12 +313,12 @@ impl<'a> ErrorContext<'a> {
         }
     }
 
-    fn backtrack(self) -> winnow::error::ErrMode<Self> {
-        winnow::error::ErrMode::Backtrack(self)
+    fn backtrack(self) -> ErrMode<Self> {
+        ErrMode::Backtrack(self)
     }
 
-    fn cut(self) -> winnow::error::ErrMode<Self> {
-        winnow::error::ErrMode::Cut(self)
+    fn cut(self) -> ErrMode<Self> {
+        ErrMode::Cut(self)
     }
 }
 
@@ -405,7 +405,7 @@ fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
         {
             Ok(value)
         } else {
-            Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            Err(ErrMode::Cut(ErrorContext::new(
                 format!("unknown {kind} suffix `{suffix}`"),
                 start,
             )))
@@ -421,7 +421,7 @@ fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
             .parse_next(i)?;
         match opt(separated_digits(base, false)).parse_next(i)? {
             Some(_) => Ok(()),
-            None => Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            None => Err(ErrMode::Cut(ErrorContext::new(
                 format!("expected digits after `{kind}`"),
                 start,
             ))),
@@ -436,7 +436,7 @@ fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
             let (kind, op) = (one_of(['e', 'E']), opt(one_of(['+', '-']))).parse_next(i)?;
             match opt(separated_digits(10, op.is_none())).parse_next(i)? {
                 Some(_) => Ok(()),
-                None => Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                None => Err(ErrMode::Cut(ErrorContext::new(
                     format!("expected decimal digits, `+` or `-` after exponent `{kind}`"),
                     start,
                 ))),
@@ -578,7 +578,7 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
                     if has_lf {
                         continue;
                     } else {
-                        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        return Err(ErrMode::Cut(ErrorContext::new(
                             "a bare CR (Mac linebreak) is not allowed in string literals, \
                             use NL (Unix linebreak) or CRNL (Windows linebreak) instead, \
                             or type `\\r` explicitly",
@@ -611,13 +611,13 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
                     match u32::from_str_radix(code, 16).unwrap() {
                         0 => contains_null = true,
                         0xd800..0xe000 => {
-                            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                            return Err(ErrMode::Cut(ErrorContext::new(
                                 "unicode escape must not be a surrogate",
                                 start,
                             )));
                         }
                         0x110000.. => {
-                            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                            return Err(ErrMode::Cut(ErrorContext::new(
                                 "unicode escape must be at most 10FFFF",
                                 start,
                             )));
@@ -653,7 +653,7 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
 
     let lit = opt(terminated(inner.with_taken(), '"')).parse_next(i)?;
     let Some((mut lit, content)) = lit else {
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        return Err(ErrMode::Cut(ErrorContext::new(
             "unclosed or broken string",
             start,
         )));
@@ -677,7 +677,7 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
         None => lit.contains_high_ascii.then_some("out of range hex escape"),
     };
     if let Some(msg) = msg {
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(msg, start)));
+        return Err(ErrMode::Cut(ErrorContext::new(msg, start)));
     }
 
     not_suffix_with_hash(i)?;
@@ -686,7 +686,7 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
 
 fn not_suffix_with_hash<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
     if let Some(suffix) = opt((identifier, '#').take()).parse_next(i)? {
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        return Err(ErrMode::Cut(ErrorContext::new(
             "you are missing a space to separate two string literals",
             suffix,
         )));
@@ -704,7 +704,7 @@ fn str_lit_without_prefix<'a>(i: &mut &'a str) -> ParseResult<'a> {
         None => None,
     };
     if let Some(kind) = kind {
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        return Err(ErrMode::Cut(ErrorContext::new(
             format!("expected an unprefixed normal string, not a {kind}"),
             start,
         )));
@@ -740,7 +740,7 @@ fn char_lit<'a>(i: &mut &'a str) -> ParseResult<'a, CharLit<'a>> {
 
     let Some(s) = s else {
         i.reset(&start);
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        return Err(ErrMode::Cut(ErrorContext::new(
             "empty character literal",
             *i,
         )));
@@ -748,10 +748,7 @@ fn char_lit<'a>(i: &mut &'a str) -> ParseResult<'a, CharLit<'a>> {
     let mut is = s;
     let Ok(c) = Char::parse(&mut is) else {
         i.reset(&start);
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-            "invalid character",
-            *i,
-        )));
+        return Err(ErrMode::Cut(ErrorContext::new("invalid character", *i)));
     };
 
     let (nb, max_value, err1, err2) = match c {
@@ -779,11 +776,11 @@ fn char_lit<'a>(i: &mut &'a str) -> ParseResult<'a, CharLit<'a>> {
 
     let Ok(nb) = u32::from_str_radix(nb, 16) else {
         i.reset(&start);
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(err1, *i)));
+        return Err(ErrMode::Cut(ErrorContext::new(err1, *i)));
     };
     if nb > max_value {
         i.reset(&start);
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(err2, *i)));
+        return Err(ErrMode::Cut(ErrorContext::new(err2, *i)));
     }
 
     Ok(CharLit {
@@ -1127,7 +1124,7 @@ impl Level<'_> {
     #[cold]
     #[inline(never)]
     fn _fail(i: &str) -> ParseErr<'_> {
-        winnow::error::ErrMode::Cut(ErrorContext::new(
+        ErrMode::Cut(ErrorContext::new(
             "your template code is too deeply nested, or the last expression is too complex",
             i,
         ))

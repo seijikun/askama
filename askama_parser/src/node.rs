@@ -5,6 +5,7 @@ use winnow::combinator::{
     alt, cut_err, delimited, eof, fail, not, opt, peek, preceded, repeat, separated,
     separated_pair, terminated,
 };
+use winnow::error::ErrMode;
 use winnow::stream::Stream as _;
 use winnow::token::{any, rest, take_until};
 use winnow::{ModalParser, Parser};
@@ -41,9 +42,7 @@ impl<'a> Node<'a> {
         let result = match (|i: &mut _| Self::many(i, s)).parse_next(i) {
             Ok(result) => result,
             Err(err) => {
-                if let winnow::error::ErrMode::Backtrack(err) | winnow::error::ErrMode::Cut(err) =
-                    &err
-                {
+                if let ErrMode::Backtrack(err) | ErrMode::Cut(err) = &err {
                     if err.message.is_none() {
                         *i = start;
                         if let Some(mut span) = err.span.as_suffix_of(i) {
@@ -57,7 +56,7 @@ impl<'a> Node<'a> {
         opt(|i: &mut _| unexpected_tag(i, s)).parse_next(i)?;
         let is_eof = opt(eof).parse_next(i)?;
         if is_eof.is_none() {
-            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            return Err(ErrMode::Cut(ErrorContext::new(
                 "cannot parse entire template\n\
                  you should never encounter this error\n\
                  please report this error to <https://github.com/askama-rs/askama/issues>",
@@ -133,7 +132,7 @@ impl<'a> Node<'a> {
         let start = *i;
         let (pws, _, nws) = p.parse_next(i)?;
         if !s.is_in_loop() {
-            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            return Err(ErrMode::Cut(ErrorContext::new(
                 "you can only `break` inside a `for` loop",
                 start,
             )));
@@ -151,7 +150,7 @@ impl<'a> Node<'a> {
         let start = *i;
         let (pws, _, nws) = p.parse_next(i)?;
         if !s.is_in_loop() {
-            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            return Err(ErrMode::Cut(ErrorContext::new(
                 "you can only `continue` inside a `for` loop",
                 start,
             )));
@@ -223,9 +222,7 @@ fn cut_node<'a, O>(
     move |i: &mut &'a str| {
         let start = *i;
         let result = inner.parse_next(i);
-        if let Err(winnow::error::ErrMode::Cut(err) | winnow::error::ErrMode::Backtrack(err)) =
-            &result
-        {
+        if let Err(ErrMode::Cut(err) | ErrMode::Backtrack(err)) = &result {
             if err.message.is_none() {
                 *i = start;
                 if let Some(mut span) = err.span.as_suffix_of(i) {
@@ -259,7 +256,7 @@ fn unexpected_raw_tag<'a>(kind: Option<&'static str>, i: &mut &'a str) -> ParseR
         tag if tag.starts_with("end") => format!("unexpected closing tag `{tag}`"),
         tag => format!("unknown node `{tag}`"),
     };
-    Err(winnow::error::ErrMode::Cut(ErrorContext::new(msg, *i)))
+    Err(ErrMode::Cut(ErrorContext::new(msg, *i)))
 }
 
 #[derive(Debug, PartialEq)]
@@ -491,7 +488,7 @@ fn check_block_start<'a>(
     expected: &str,
 ) -> ParseResult<'a, ()> {
     if i.is_empty() {
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        return Err(ErrMode::Cut(ErrorContext::new(
             format!("expected `{expected}` to terminate `{node}` node, found nothing"),
             start,
         )));
@@ -625,7 +622,7 @@ fn check_duplicated_name<'a>(
     i: &'a str,
 ) -> Result<(), crate::ParseErr<'a>> {
     if !names.insert(arg_name) {
-        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+        return Err(ErrMode::Cut(ErrorContext::new(
             format!("duplicated argument `{arg_name}`"),
             i,
         )));
@@ -661,7 +658,7 @@ impl<'a> Macro<'a> {
             .parse_next(i)?;
             match args {
                 Some((args, Some(_))) => Ok(args),
-                Some((_, None)) => Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                Some((_, None)) => Err(ErrMode::Cut(ErrorContext::new(
                     "expected `)` to close macro argument list",
                     *i,
                 ))),
@@ -685,7 +682,7 @@ impl<'a> Macro<'a> {
         );
         let (pws1, _, (name, params, nws1, _)) = start.parse_next(i)?;
         if is_rust_keyword(name) {
-            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            return Err(ErrMode::Cut(ErrorContext::new(
                 format!("'{name}' is not a valid name for a macro"),
                 start_s,
             )));
@@ -701,7 +698,7 @@ impl<'a> Macro<'a> {
                     for (new_arg_name, default_value) in iter.by_ref() {
                         check_duplicated_name(&mut names, new_arg_name, start_s)?;
                         if default_value.is_none() {
-                            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                            return Err(ErrMode::Cut(ErrorContext::new(
                                 format!(
                                     "all arguments following `{arg_name}` should have a default \
                                          value, `{new_arg_name}` doesn't have a default value"
@@ -880,7 +877,7 @@ impl<'a> Call<'a> {
 
             match args {
                 Some((args, Some(_))) => Ok(args),
-                Some((_, None)) => Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                Some((_, None)) => Err(ErrMode::Cut(ErrorContext::new(
                     "expected `)` to close call argument list",
                     *i,
                 ))),
@@ -992,7 +989,7 @@ impl<'a> Match<'a> {
             arms.push(arm);
         }
         if arms.is_empty() {
-            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            return Err(ErrMode::Cut(ErrorContext::new(
                 "`match` nodes must contain at least one `when` node and/or an `else` case",
                 start,
             )));
@@ -1082,7 +1079,7 @@ fn check_end_name<'a>(
         return Ok(end_name);
     }
 
-    Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+    Err(ErrMode::Cut(ErrorContext::new(
         match name.is_empty() && !end_name.is_empty() {
             true => format!("unexpected name `{end_name}` in `end{kind}` tag for unnamed `{kind}`"),
             false => format!("expected name `{name}` in `end{kind}` tag, found `{end_name}`"),
@@ -1234,7 +1231,7 @@ impl<'a> Let<'a> {
                 }
             };
             if let Some(kind) = kind {
-                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                return Err(ErrMode::Cut(ErrorContext::new(
                     format!(
                         "when you forward-define a variable, you cannot use {kind} in place of \
                          a variable name"
@@ -1244,7 +1241,7 @@ impl<'a> Let<'a> {
             }
         }
         if is_mut.is_some() && !matches!(var, Target::Name(_)) {
-            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            return Err(ErrMode::Cut(ErrorContext::new(
                 "you can only use the `mut` keyword with a variable name",
                 start,
             )));
@@ -1407,7 +1404,7 @@ impl<'a> Comment<'a> {
 
         let mut ws = Ws(None, None);
         if content.len() == 1 && matches!(content, "-" | "+" | "~") {
-            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            return Err(ErrMode::Cut(ErrorContext::new(
                 format!(
                     "ambiguous whitespace stripping\n\
                      use `{}{content} {content}{}` to apply the same whitespace stripping on both \
@@ -1442,7 +1439,7 @@ fn end_node<'a, 'g: 'a>(
             Ok(actual)
         } else if actual.starts_with("end") {
             i.reset(&start);
-            Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            Err(ErrMode::Cut(ErrorContext::new(
                 format!("expected `{expected}` to terminate `{node}` node, found `{actual}`"),
                 *i,
             )))
