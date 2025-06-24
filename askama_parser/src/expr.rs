@@ -11,8 +11,8 @@ use winnow::token::take_until;
 
 use crate::node::CondTest;
 use crate::{
-    CharLit, ErrorContext, Level, Num, ParseErr, ParseResult, PathOrIdentifier, Span, StrLit,
-    StrPrefix, WithSpan, char_lit, filter, identifier, keyword, not_suffix_with_hash, num_lit,
+    CharLit, Level, Num, ParseResult, PathOrIdentifier, Span, StrLit, StrPrefix, WithSpan,
+    char_lit, cut_error, filter, identifier, keyword, not_suffix_with_hash, num_lit,
     path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
@@ -50,22 +50,22 @@ struct Allowed {
     super_keyword: bool,
 }
 
-fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(), ParseErr<'a>> {
+fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> ParseResult<'a, ()> {
     match &expr.inner {
         &Expr::Var(name) => {
             // List can be found in rust compiler "can_be_raw" function (although in our case, it's
             // also used in cases like `match`, so `self` is allowed in this case).
             if (!allowed.super_keyword && name == "super") || matches!(name, "crate" | "Self") {
-                Err(err_reserved_identifier(name))
+                err_reserved_identifier(name)
             } else if !allowed.underscore && name == "_" {
-                Err(err_underscore_identifier(name))
+                err_underscore_identifier(name)
             } else {
                 Ok(())
             }
         }
         &Expr::IsDefined(var) | &Expr::IsNotDefined(var) => {
             if var == "_" {
-                Err(err_underscore_identifier(var))
+                err_underscore_identifier(var)
             } else {
                 Ok(())
             }
@@ -73,7 +73,7 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
         Expr::Path(path) => {
             if let &[name] = path.as_slice() {
                 if !crate::can_be_variable_name(name) {
-                    return Err(err_reserved_identifier(name));
+                    return err_reserved_identifier(name);
                 }
             }
             Ok(())
@@ -86,9 +86,9 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
         }
         Expr::AssociatedItem(elem, associated_item) => {
             if associated_item.name == "_" {
-                Err(err_underscore_identifier(associated_item.name))
+                err_underscore_identifier(associated_item.name)
             } else if !crate::can_be_variable_name(associated_item.name) {
-                Err(err_reserved_identifier(associated_item.name))
+                err_reserved_identifier(associated_item.name)
             } else {
                 check_expr(elem, Allowed::default())
             }
@@ -126,7 +126,7 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
             }
             Ok(())
         }
-        Expr::ArgumentPlaceholder => Err(ErrMode::Cut(ErrorContext::new("unreachable", expr.span))),
+        Expr::ArgumentPlaceholder => cut_error!("unreachable", expr.span),
         Expr::BoolLit(_)
         | Expr::NumLit(_, _)
         | Expr::StrLit(_)
@@ -140,18 +140,14 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
     }
 }
 
-fn err_underscore_identifier(name: &str) -> ErrMode<ErrorContext<'_>> {
-    ErrMode::Cut(ErrorContext::new(
-        "reserved keyword `_` cannot be used here",
-        name,
-    ))
+#[inline(always)]
+fn err_underscore_identifier<T>(name: &str) -> ParseResult<'_, T> {
+    cut_error!("reserved keyword `_` cannot be used here", name)
 }
 
-fn err_reserved_identifier(name: &str) -> ErrMode<ErrorContext<'_>> {
-    ErrMode::Cut(ErrorContext::new(
-        format!("`{name}` cannot be used as an identifier"),
-        name,
-    ))
+#[inline(always)]
+fn err_reserved_identifier<T>(name: &str) -> ParseResult<'_, T> {
+    cut_error!(format!("`{name}` cannot be used as an identifier"), name)
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -244,10 +240,7 @@ impl<'a> Expr<'a> {
                         ))
                         .parse_next(i)?;
                         if has_named_arguments && !matches!(*expr, Self::NamedArgument(_, _)) {
-                            Err(ErrMode::Cut(ErrorContext::new(
-                                "named arguments must always be passed last",
-                                start,
-                            )))
+                            cut_error!("named arguments must always be passed last", start)
                         } else {
                             Ok(expr)
                         }
@@ -283,10 +276,10 @@ impl<'a> Expr<'a> {
                 start,
             ))
         } else {
-            Err(ErrMode::Cut(ErrorContext::new(
+            cut_error!(
                 format!("named argument `{argument}` was passed more than once"),
-                start,
-            )))
+                start
+            )
         }
     }
 
@@ -357,13 +350,13 @@ impl<'a> Expr<'a> {
         let expr = WithSpan::new(Expr::BinOp(Box::new(BinOp { op, lhs: expr, rhs })), start);
 
         if let Some((op2, _)) = opt(right).parse_next(i)? {
-            return Err(ErrMode::Cut(ErrorContext::new(
+            return cut_error!(
                 format!(
                     "comparison operators cannot be chained; \
                     consider using explicit parentheses, e.g.  `(_ {op} _) {op2} _`"
                 ),
                 op,
-            )));
+            );
         }
 
         Ok(expr)
@@ -386,10 +379,10 @@ impl<'a> Expr<'a> {
             let data = opt((ws1, '~', ws1, |i: &mut _| Expr::muldivmod(i, level))).parse_next(i)?;
             if let Some((t1, _, t2, expr)) = data {
                 if t1.is_none() || t2.is_none() {
-                    return Err(ErrMode::Cut(ErrorContext::new(
+                    return cut_error!(
                         "the concat operator `~` must be surrounded by spaces",
                         start,
-                    )));
+                    );
                 }
                 Ok(Some(expr))
             } else {
@@ -426,18 +419,18 @@ impl<'a> Expr<'a> {
                 if crate::PRIMITIVE_TYPES.contains(&target) {
                     return Ok(WithSpan::new(Self::As(Box::new(lhs), target), start));
                 } else if target.is_empty() {
-                    return Err(ErrMode::Cut(ErrorContext::new(
+                    return cut_error!(
                         "`as` operator expects the name of a primitive type on its right-hand side",
                         before_keyword.trim_start(),
-                    )));
+                    );
                 } else {
-                    return Err(ErrMode::Cut(ErrorContext::new(
+                    return cut_error!(
                         format!(
                             "`as` operator expects the name of a primitive type on its right-hand \
                               side, found `{target}`"
                         ),
                         before_keyword.trim_start(),
-                    )));
+                    );
                 }
             }
             _ => {
@@ -449,11 +442,11 @@ impl<'a> Expr<'a> {
         let rhs = opt(terminated(opt(keyword("not")), ws(keyword("defined")))).parse_next(i)?;
         let ctor = match rhs {
             None => {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     "expected `defined` or `not defined` after `is`",
                     // We use `start` to show the whole `var is` thing instead of the current token.
                     start,
-                )));
+                );
             }
             Some(None) => Self::IsDefined,
             Some(Some(_)) => Self::IsNotDefined,
@@ -461,16 +454,13 @@ impl<'a> Expr<'a> {
         let var_name = match *lhs {
             Self::Var(var_name) => var_name,
             Self::AssociatedItem(_, _) => {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     "`is defined` operator can only be used on variables, not on their fields",
                     start,
-                )));
+                );
             }
             _ => {
-                return Err(ErrMode::Cut(ErrorContext::new(
-                    "`is defined` operator can only be used on variables",
-                    start,
-                )));
+                return cut_error!("`is defined` operator can only be used on variables", start);
             }
         };
         Ok(WithSpan::new(ctor(var_name), start))
@@ -642,10 +632,7 @@ fn token_xor<'a>(i: &mut &'a str) -> ParseResult<'a> {
     if good {
         Ok("^")
     } else {
-        Err(ErrMode::Cut(ErrorContext::new(
-            "the binary XOR operator is called `xor` in askama",
-            *i,
-        )))
+        cut_error!("the binary XOR operator is called `xor` in askama", *i)
     }
 }
 
@@ -654,10 +641,7 @@ fn token_bitand<'a>(i: &mut &'a str) -> ParseResult<'a> {
     if good {
         Ok("&")
     } else {
-        Err(ErrMode::Cut(ErrorContext::new(
-            "the binary AND operator is called `bitand` in askama",
-            *i,
-        )))
+        cut_error!("the binary AND operator is called `bitand` in askama", *i)
     }
 }
 
@@ -784,10 +768,7 @@ impl<'a> Suffix<'a> {
                 let before = *i;
                 let (token, token_span) = ws(opt(token).with_taken()).parse_next(i)?;
                 let Some(token) = token else {
-                    return Err(ErrMode::Cut(ErrorContext::new(
-                        "expected valid tokens in macro call",
-                        token_span,
-                    )));
+                    return cut_error!("expected valid tokens in macro call", token_span);
                 };
                 let close_token = match token {
                     Token::SomeOther => continue,
@@ -800,14 +781,14 @@ impl<'a> Suffix<'a> {
                 let open_token = open_list.pop().unwrap();
 
                 if open_token != close_token {
-                    return Err(ErrMode::Cut(ErrorContext::new(
+                    return cut_error!(
                         format!(
                             "expected `{}` but found `{}`",
                             open_token.as_close_char(),
                             close_token.as_close_char(),
                         ),
                         token_span,
-                    )));
+                    );
                 } else if open_list.is_empty() {
                     return Ok(Suffix::MacroCall(&start[..start.len() - before.len()]));
                 }
@@ -844,13 +825,13 @@ impl<'a> Suffix<'a> {
             ))
             .parse_next(i)?;
             if opt(take_until(.., '\n')).parse_next(i)?.is_none() {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     format!(
                         "you are probably missing a line break to end {}comment",
                         if is_doc_comment { "doc " } else { "" }
                     ),
                     start,
-                )));
+                );
             }
             Ok(())
         }
@@ -864,13 +845,13 @@ impl<'a> Suffix<'a> {
             ))
             .parse_next(i)?;
             if opt(take_until(.., "*/")).parse_next(i)?.is_none() {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     format!(
                         "missing `*/` to close block {}comment",
                         if is_doc_comment { "doc " } else { "" }
                     ),
                     start,
-                )));
+                );
             }
             Ok(())
         }
@@ -881,10 +862,10 @@ impl<'a> Suffix<'a> {
             let prefix = identifier.parse_next(i)?;
             let hashes: usize = repeat(.., '#').parse_next(i)?;
             if hashes >= 256 {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     "a maximum of 255 hashes `#` are allowed with raw strings",
                     prefix,
-                )));
+                );
             }
 
             let str_kind = match prefix {
@@ -897,10 +878,10 @@ impl<'a> Suffix<'a> {
                 _ if hashes == 0 => return Ok(()),
                 // reserved prefix: reject
                 _ => {
-                    return Err(ErrMode::Cut(ErrorContext::new(
+                    return cut_error!(
                         format!("reserved prefix `{}#`", prefix.escape_debug()),
                         prefix,
-                    )));
+                    );
                 }
             };
 
@@ -908,10 +889,7 @@ impl<'a> Suffix<'a> {
                 // got a raw string
 
                 let Some((inner, j)) = i.split_once(&format!("\"{:#<hashes$}", "")) else {
-                    return Err(ErrMode::Cut(ErrorContext::new(
-                        "unterminated raw string",
-                        prefix,
-                    )));
+                    return cut_error!("unterminated raw string", prefix);
                 };
                 *i = j;
 
@@ -927,7 +905,7 @@ impl<'a> Suffix<'a> {
                     None => None,
                 };
                 if let Some(msg) = msg {
-                    return Err(ErrMode::Cut(ErrorContext::new(msg, prefix)));
+                    return cut_error!(msg, prefix);
                 }
 
                 not_suffix_with_hash(i)?;
@@ -940,31 +918,31 @@ impl<'a> Suffix<'a> {
 
                 if str_kind.is_some() {
                     // an invalid raw identifier like `cr#async`
-                    Err(ErrMode::Cut(ErrorContext::new(
+                    cut_error!(
                         format!(
                             "reserved prefix `{}#`, only `r#` is allowed with raw identifiers",
                             prefix.escape_debug(),
                         ),
                         prefix,
-                    )))
+                    )
                 } else if hashes > 1 {
                     // an invalid raw identifier like `r##async`
-                    Err(ErrMode::Cut(ErrorContext::new(
+                    cut_error!(
                         "only one `#` is allowed in raw identifier delimitation",
                         prefix,
-                    )))
+                    )
                 } else {
                     // a raw identifier like `r#async`
                     Ok(())
                 }
             } else {
-                Err(ErrMode::Cut(ErrorContext::new(
+                cut_error!(
                     format!(
                         "prefix `{}#` is only allowed with raw identifiers and raw strings",
                         prefix.escape_debug(),
                     ),
                     prefix,
-                )))
+                )
             }
         }
 
@@ -972,10 +950,10 @@ impl<'a> Suffix<'a> {
             let start = *i;
             '#'.parse_next(i)?;
             if opt('"').parse_next(i)?.is_some() {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     "unprefixed guarded string literals are reserved for future use",
                     start,
-                )));
+                );
             }
             Ok(Token::SomeOther)
         }
@@ -1044,10 +1022,7 @@ impl<'a> Suffix<'a> {
                 |i: &mut _| {
                     let name = alt((digit1, identifier)).parse_next(i)?;
                     if !crate::can_be_variable_name(name) {
-                        Err(ErrMode::Cut(ErrorContext::new(
-                            format!("`{name}` cannot be used as an identifier"),
-                            name,
-                        )))
+                        cut_error!(format!("`{name}` cannot be used as an identifier"), name)
                     } else {
                         Ok(name)
                     }
@@ -1094,10 +1069,9 @@ impl<'a> Suffix<'a> {
 
 fn ensure_macro_name(name: &str) -> ParseResult<'_, ()> {
     match name {
-        "crate" | "super" | "Self" | "self" => Err(ErrMode::Cut(ErrorContext::new(
-            format!("`{name}` is not a valid macro name"),
-            name,
-        ))),
+        "crate" | "super" | "Self" | "self" => {
+            cut_error!(format!("`{name}` is not a valid macro name"), name)
+        }
         _ => Ok(()),
     }
 }
@@ -1122,17 +1096,17 @@ impl<'i> TyGenerics<'i> {
         if let &[name] = path.as_slice() {
             if matches!(name, "super" | "self" | "crate") {
                 // `Self` and `_` are allowed
-                return Err(err_reserved_identifier(name));
+                return err_reserved_identifier(name);
             }
         } else {
             for (idx, &name) in path.iter().enumerate() {
                 if name == "_" {
                     // `_` is never allowed
-                    return Err(err_underscore_identifier(name));
+                    return err_underscore_identifier(name);
                 } else if idx > 0 && matches!(name, "super" | "self" | "Self" | "crate") {
                     // At the front of the path, "super" | "self" | "Self" | "crate" are allowed.
                     // Inside the path, they are not allowed.
-                    return Err(err_reserved_identifier(name));
+                    return err_reserved_identifier(name);
                 }
             }
         }
