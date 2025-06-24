@@ -5,8 +5,8 @@ use winnow::{ModalParser, Parser};
 
 use crate::{
     CharLit, ErrorContext, Num, ParseErr, ParseResult, PathOrIdentifier, State, StrLit, WithSpan,
-    bool_lit, can_be_variable_name, char_lit, identifier, is_rust_keyword, keyword, num_lit,
-    path_or_identifier, str_lit, ws,
+    bool_lit, can_be_variable_name, char_lit, cut_error, identifier, is_rust_keyword, keyword,
+    num_lit, path_or_identifier, str_lit, ws,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -112,18 +112,12 @@ impl<'a> Target<'a> {
             if let [name] = path.as_slice() {
                 // If the path only contains one item, we need to check the name.
                 if !can_be_variable_name(name) {
-                    return Err(ErrMode::Cut(ErrorContext::new(
-                        format!("`{name}` cannot be used as an identifier"),
-                        *name,
-                    )));
+                    return cut_error!(format!("`{name}` cannot be used as an identifier"), *name);
                 }
             } else {
                 // Otherwise we need to check every element but the first.
                 if let Some(name) = path.iter().skip(1).find(|n| !can_be_variable_name(n)) {
-                    return Err(ErrMode::Cut(ErrorContext::new(
-                        format!("`{name}` cannot be used as an identifier"),
-                        *name,
-                    )));
+                    return cut_error!(format!("`{name}` cannot be used as an identifier"), *name);
                 }
             }
 
@@ -163,20 +157,17 @@ impl<'a> Target<'a> {
         if let Some(rest) = rest {
             let chr = peek(ws(opt(one_of([',', ':'])))).parse_next(i)?;
             if let Some(chr) = chr {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     format!(
                         "unexpected `{chr}` character after `..`\n\
                          note that in a named struct, `..` must come last to ignore other members"
                     ),
                     *i,
-                )));
+                );
             }
             if let Target::Rest(ref s) = rest.0 {
                 if s.inner.is_some() {
-                    return Err(ErrMode::Cut(ErrorContext::new(
-                        "`@ ..` cannot be used in struct",
-                        s.span,
-                    )));
+                    return cut_error!("`@ ..` cannot be used in struct", s.span);
                 }
             }
             return Ok((rest.1, rest.0));
@@ -191,10 +182,7 @@ impl<'a> Target<'a> {
 
         if src == "_" {
             *i = start;
-            return Err(ErrMode::Cut(ErrorContext::new(
-                "cannot use placeholder `_` as source in named struct",
-                *i,
-            )));
+            return cut_error!("cannot use placeholder `_` as source in named struct", *i);
         }
 
         let target = match target {
@@ -216,20 +204,17 @@ impl<'a> Target<'a> {
 
 fn verify_name<'a>(input: &'a str, name: &'a str) -> Result<Target<'a>, ErrMode<ErrorContext<'a>>> {
     if is_rust_keyword(name) {
-        Err(ErrMode::Cut(ErrorContext::new(
+        cut_error!(
             format!("cannot use `{name}` as a name: it is a rust keyword"),
             input,
-        )))
+        )
     } else if !can_be_variable_name(name) {
-        Err(ErrMode::Cut(ErrorContext::new(
-            format!("`{name}` cannot be used as an identifier"),
-            input,
-        )))
+        cut_error!(format!("`{name}` cannot be used as an identifier"), input)
     } else if name.starts_with("__askama") {
-        Err(ErrMode::Cut(ErrorContext::new(
+        cut_error!(
             format!("cannot use `{name}` as a name: it is reserved for `askama`"),
             input,
-        )))
+        )
     } else {
         Ok(Target::Name(name))
     }
@@ -250,10 +235,7 @@ fn collect_targets<'a, T>(
 
     let targets = opt(separated(1.., one, ws(',')).map(|v: Vec<_>| v)).parse_next(i)?;
     let Some(targets) = targets else {
-        return Err(ErrMode::Cut(ErrorContext::new(
-            "expected comma separated list of members",
-            *i,
-        )));
+        return cut_error!("expected comma separated list of members", *i);
     };
 
     let (has_comma, has_end) = (opt_comma, opt_end).parse_next(i)?;
@@ -262,7 +244,7 @@ fn collect_targets<'a, T>(
             true => format!("expected member, or `{delim}` as terminator"),
             false => format!("expected `,` for more members, or `{delim}` as terminator"),
         };
-        return Err(ErrMode::Cut(ErrorContext::new(msg, *i)));
+        return cut_error!(msg, *i);
     }
 
     let singleton = !has_comma && targets.len() == 1;
@@ -279,16 +261,13 @@ fn only_one_rest_pattern<'a>(
     for target in &targets {
         if let Target::Rest(s) = target {
             if !allow_named_rest && s.inner.is_some() {
-                return Err(ErrMode::Cut(ErrorContext::new(
-                    "`@ ..` is only allowed in slice patterns",
-                    s.span,
-                )));
+                return cut_error!("`@ ..` is only allowed in slice patterns", s.span);
             }
             if found_rest {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     format!("`..` can only be used once per {type_kind} pattern"),
                     s.span,
-                )));
+                );
             }
             found_rest = true;
         }

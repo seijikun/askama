@@ -11,8 +11,8 @@ use winnow::token::{any, rest, take_until};
 use winnow::{ModalParser, Parser};
 
 use crate::{
-    ErrorContext, Expr, Filter, ParseResult, Span, State, Target, WithSpan, filter, identifier,
-    is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
+    ErrorContext, Expr, Filter, ParseResult, Span, State, Target, WithSpan, cut_error, filter,
+    identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -56,12 +56,12 @@ impl<'a> Node<'a> {
         opt(|i: &mut _| unexpected_tag(i, s)).parse_next(i)?;
         let is_eof = opt(eof).parse_next(i)?;
         if is_eof.is_none() {
-            return Err(ErrMode::Cut(ErrorContext::new(
+            return cut_error!(
                 "cannot parse entire template\n\
                  you should never encounter this error\n\
                  please report this error to <https://github.com/askama-rs/askama/issues>",
                 *i,
-            )));
+            );
         }
         Ok(result)
     }
@@ -132,10 +132,7 @@ impl<'a> Node<'a> {
         let start = *i;
         let (pws, _, nws) = p.parse_next(i)?;
         if !s.is_in_loop() {
-            return Err(ErrMode::Cut(ErrorContext::new(
-                "you can only `break` inside a `for` loop",
-                start,
-            )));
+            return cut_error!("you can only `break` inside a `for` loop", start);
         }
         Ok(Self::Break(WithSpan::new(Ws(pws, nws), start)))
     }
@@ -150,10 +147,7 @@ impl<'a> Node<'a> {
         let start = *i;
         let (pws, _, nws) = p.parse_next(i)?;
         if !s.is_in_loop() {
-            return Err(ErrMode::Cut(ErrorContext::new(
-                "you can only `continue` inside a `for` loop",
-                start,
-            )));
+            return cut_error!("you can only `continue` inside a `for` loop", start);
         }
         Ok(Self::Continue(WithSpan::new(Ws(pws, nws), start)))
     }
@@ -256,7 +250,7 @@ fn unexpected_raw_tag<'a>(kind: Option<&'static str>, i: &mut &'a str) -> ParseR
         tag if tag.starts_with("end") => format!("unexpected closing tag `{tag}`"),
         tag => format!("unknown node `{tag}`"),
     };
-    Err(ErrMode::Cut(ErrorContext::new(msg, *i)))
+    cut_error!(msg, *i)
 }
 
 #[derive(Debug, PartialEq)]
@@ -488,10 +482,10 @@ fn check_block_start<'a>(
     expected: &str,
 ) -> ParseResult<'a, ()> {
     if i.is_empty() {
-        return Err(ErrMode::Cut(ErrorContext::new(
+        return cut_error!(
             format!("expected `{expected}` to terminate `{node}` node, found nothing"),
             start,
-        )));
+        );
     }
     (|i: &mut _| s.tag_block_start(i)).parse_next(i)
 }
@@ -622,10 +616,7 @@ fn check_duplicated_name<'a>(
     i: &'a str,
 ) -> Result<(), crate::ParseErr<'a>> {
     if !names.insert(arg_name) {
-        return Err(ErrMode::Cut(ErrorContext::new(
-            format!("duplicated argument `{arg_name}`"),
-            i,
-        )));
+        return cut_error!(format!("duplicated argument `{arg_name}`"), i);
     }
     Ok(())
 }
@@ -658,10 +649,7 @@ impl<'a> Macro<'a> {
             .parse_next(i)?;
             match args {
                 Some((args, Some(_))) => Ok(args),
-                Some((_, None)) => Err(ErrMode::Cut(ErrorContext::new(
-                    "expected `)` to close macro argument list",
-                    *i,
-                ))),
+                Some((_, None)) => cut_error!("expected `)` to close macro argument list", *i),
                 None => Ok(None),
             }
         };
@@ -682,10 +670,7 @@ impl<'a> Macro<'a> {
         );
         let (pws1, _, (name, params, nws1, _)) = start.parse_next(i)?;
         if is_rust_keyword(name) {
-            return Err(ErrMode::Cut(ErrorContext::new(
-                format!("'{name}' is not a valid name for a macro"),
-                start_s,
-            )));
+            return cut_error!(format!("'{name}' is not a valid name for a macro"), start_s);
         }
 
         if let Some(ref params) = params {
@@ -698,13 +683,13 @@ impl<'a> Macro<'a> {
                     for (new_arg_name, default_value) in iter.by_ref() {
                         check_duplicated_name(&mut names, new_arg_name, start_s)?;
                         if default_value.is_none() {
-                            return Err(ErrMode::Cut(ErrorContext::new(
+                            return cut_error!(
                                 format!(
                                     "all arguments following `{arg_name}` should have a default \
                                          value, `{new_arg_name}` doesn't have a default value"
                                 ),
                                 start_s,
-                            )));
+                            );
                         }
                     }
                 }
@@ -877,10 +862,7 @@ impl<'a> Call<'a> {
 
             match args {
                 Some((args, Some(_))) => Ok(args),
-                Some((_, None)) => Err(ErrMode::Cut(ErrorContext::new(
-                    "expected `)` to close call argument list",
-                    *i,
-                ))),
+                Some((_, None)) => cut_error!("expected `)` to close call argument list", *i),
                 None => Ok(None),
             }
         };
@@ -989,10 +971,10 @@ impl<'a> Match<'a> {
             arms.push(arm);
         }
         if arms.is_empty() {
-            return Err(ErrMode::Cut(ErrorContext::new(
+            return cut_error!(
                 "`match` nodes must contain at least one `when` node and/or an `else` case",
                 start,
-            )));
+            );
         }
 
         Ok(WithSpan::new(
@@ -1079,13 +1061,13 @@ fn check_end_name<'a>(
         return Ok(end_name);
     }
 
-    Err(ErrMode::Cut(ErrorContext::new(
+    cut_error!(
         match name.is_empty() && !end_name.is_empty() {
             true => format!("unexpected name `{end_name}` in `end{kind}` tag for unnamed `{kind}`"),
             false => format!("expected name `{name}` in `end{kind}` tag, found `{end_name}`"),
         },
         before,
-    )))
+    )
 }
 
 #[derive(Debug, PartialEq)]
@@ -1231,20 +1213,20 @@ impl<'a> Let<'a> {
                 }
             };
             if let Some(kind) = kind {
-                return Err(ErrMode::Cut(ErrorContext::new(
+                return cut_error!(
                     format!(
                         "when you forward-define a variable, you cannot use {kind} in place of \
                          a variable name"
                     ),
                     start,
-                )));
+                );
             }
         }
         if is_mut.is_some() && !matches!(var, Target::Name(_)) {
-            return Err(ErrMode::Cut(ErrorContext::new(
+            return cut_error!(
                 "you can only use the `mut` keyword with a variable name",
                 start,
-            )));
+            );
         }
 
         Ok(WithSpan::new(
@@ -1404,7 +1386,7 @@ impl<'a> Comment<'a> {
 
         let mut ws = Ws(None, None);
         if content.len() == 1 && matches!(content, "-" | "+" | "~") {
-            return Err(ErrMode::Cut(ErrorContext::new(
+            return cut_error!(
                 format!(
                     "ambiguous whitespace stripping\n\
                      use `{}{content} {content}{}` to apply the same whitespace stripping on both \
@@ -1412,7 +1394,7 @@ impl<'a> Comment<'a> {
                     s.syntax.comment_start, s.syntax.comment_end,
                 ),
                 start,
-            )));
+            );
         } else if content.len() >= 2 {
             ws.0 = Whitespace::parse_char(content.chars().next().unwrap_or_default());
             ws.1 = Whitespace::parse_char(content.chars().next_back().unwrap_or_default());
@@ -1439,10 +1421,10 @@ fn end_node<'a, 'g: 'a>(
             Ok(actual)
         } else if actual.starts_with("end") {
             i.reset(&start);
-            Err(ErrMode::Cut(ErrorContext::new(
+            cut_error!(
                 format!("expected `{expected}` to terminate `{node}` node, found `{actual}`"),
                 *i,
-            )))
+            )
         } else {
             i.reset(&start);
             fail.parse_next(i)
