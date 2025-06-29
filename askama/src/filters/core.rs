@@ -910,7 +910,7 @@ mod tests {
         impl<'a> fmt::Display for Chunked<'a> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 for chunk in self.0.chars() {
-                    write!(f, "{}", chunk)?;
+                    write!(f, "{chunk}")?;
                 }
                 Ok(())
             }

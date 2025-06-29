@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::iter::FusedIterator;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -661,30 +660,6 @@ fn collect_askama_code_blocks(
     }
     Ok(Source::Source(tmpl_source.into()))
 }
-
-struct ResultIter<I, E>(Result<I, Option<E>>);
-
-impl<I: IntoIterator, E> From<Result<I, E>> for ResultIter<I::IntoIter, E> {
-    fn from(value: Result<I, E>) -> Self {
-        Self(match value {
-            Ok(i) => Ok(i.into_iter()),
-            Err(e) => Err(Some(e)),
-        })
-    }
-}
-
-impl<I: Iterator, E> Iterator for ResultIter<I, E> {
-    type Item = Result<I::Item, E>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.0 {
-            Ok(iter) => Some(Ok(iter.next()?)),
-            Err(err) => Some(Err(err.take()?)),
-        }
-    }
-}
-
-impl<I: FusedIterator, E> FusedIterator for ResultIter<I, E> {}
 
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub(crate) enum Source {

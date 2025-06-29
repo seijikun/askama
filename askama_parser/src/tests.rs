@@ -1163,9 +1163,8 @@ fn fuzzed_excessive_syntax_lengths() {
         assert_eq!(
             err,
             format!(
-                "delimiters must be at most 32 characters long. The {} delimiter \
-                 (\"\\0]***NEWFILE\\u{{1f}}***\"...) is too long",
-                kind
+                "delimiters must be at most 32 characters long. The {kind} delimiter \
+                 (\"\\0]***NEWFILE\\u{{1f}}***\"...) is too long"
             ),
         );
     }
@@ -1181,7 +1180,7 @@ fn extends_with_whitespace_control() {
         for back in CONTROL {
             let src = format!(r#"front {{%{front} extends "nothing" {back}%}} back"#);
             let actual = Ast::from_str(&src, None, &syntax).unwrap();
-            assert_eq!(expected.nodes(), actual.nodes(), "source: {:?}", src);
+            assert_eq!(expected.nodes(), actual.nodes(), "source: {src:?}");
         }
     }
 }
