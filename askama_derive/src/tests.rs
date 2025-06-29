@@ -1154,7 +1154,7 @@ fn extends_with_whitespace_control() {
             let src = format!(r#"front {{%{front} extends "a.html" {back}%}} back"#);
             let actual = jinja_to_rust(&src, &[], "").unwrap();
             let actual = unparse(&actual);
-            assert_eq!(expected, actual, "source: {:?}", src);
+            assert_eq!(expected, actual, "source: {src:?}");
         }
     }
 }
