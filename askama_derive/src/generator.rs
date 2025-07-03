@@ -86,8 +86,6 @@ struct Generator<'a, 'h> {
     is_in_filter_block: usize,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_callers: Vec<(&'a Call<'a>, &'a Macro<'a>, Option<FileInfo<'a>>)>,
-    /// the active caller within the macro.
-    active_caller: Option<&'a Call<'a>>,
 }
 
 impl<'a, 'h> Generator<'a, 'h> {
@@ -113,7 +111,6 @@ impl<'a, 'h> Generator<'a, 'h> {
             },
             is_in_filter_block,
             seen_callers: Vec::new(),
-            active_caller: None,
         }
     }
 
@@ -499,12 +496,26 @@ struct LocalVariableMeta {
 }
 
 #[derive(Clone)]
-enum LocalMeta {
-    /// Normal variable
-    Variable(LocalVariableMeta),
+struct LocalCallerMeta<'a> {
+    def: &'a Call<'a>,
+    call_ctx: Context<'a>,
 }
 
-impl<'a> LocalMeta {
+#[derive(Clone)]
+enum LocalMeta<'a> {
+    /// Normal variable
+    Variable(LocalVariableMeta),
+
+    /// This special variable is a caller alias. It's another name for caller().
+    CallerAlias(LocalCallerMeta<'a>),
+
+    /// Represents a "negative" local variable. Meaning: When the resolve methods
+    /// encounters a negative on its path down the stack of scopes, it will immediately
+    /// return without result. This is required to "block out" variables outside of a certain scope
+    Negative,
+}
+
+impl<'a> LocalMeta<'a> {
     /// Variable declaration only - no value yet.
     const fn var_decl() -> Self {
         Self::Variable(LocalVariableMeta {
@@ -528,10 +539,15 @@ impl<'a> LocalMeta {
             initialized: true,
         })
     }
+
+    /// Special variable aliasing a `caller()`
+    const fn caller(def: &'a Call<'a>, call_ctx: Context<'a>) -> Self {
+        Self::CallerAlias(LocalCallerMeta { def, call_ctx })
+    }
 }
 
 struct MapChain<'a> {
-    scopes: Vec<HashMap<Cow<'a, str>, LocalMeta, FxBuildHasher>>,
+    scopes: Vec<HashMap<Cow<'a, str>, LocalMeta<'a>, FxBuildHasher>>,
 }
 
 impl<'a> MapChain<'a> {
@@ -551,11 +567,23 @@ impl<'a> MapChain<'a> {
         }
     }
 
+    /// Iterates the scopes in reverse and searches for a `CallerAlias`
+    ///
+    /// # Returns
+    /// - `Some(LocalCallerMeta)` if the first encountered entry for key was a caller alias
+    /// - `None` otherwise
+    fn get_caller<'b>(&'b self, key: &str) -> Option<&'b LocalCallerMeta<'a>> {
+        match self.scopes.iter().rev().find_map(|set| set.get(key)) {
+            Some(LocalMeta::CallerAlias(caller)) => Some(caller),
+            _ => None,
+        }
+    }
+
     fn is_current_empty(&self) -> bool {
         self.scopes.last().unwrap().is_empty()
     }
 
-    fn insert(&mut self, key: Cow<'a, str>, val: LocalMeta) {
+    fn insert(&mut self, key: Cow<'a, str>, val: LocalMeta<'a>) {
         self.scopes.last_mut().unwrap().insert(key, val);
 
         // Note that if `insert` returns `Some` then it implies
