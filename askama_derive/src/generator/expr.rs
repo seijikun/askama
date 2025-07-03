@@ -746,7 +746,7 @@ impl<'a> Generator<'a, '_> {
             Target::Rest(s) => {
                 if let Some(var_name) = &**s {
                     self.locals
-                        .insert(Cow::Borrowed(var_name), LocalMeta::initialized());
+                        .insert(Cow::Borrowed(var_name), LocalMeta::var_def());
                     buf.write(var_name);
                     buf.write(" @ ");
                 }
@@ -757,7 +757,7 @@ impl<'a> Generator<'a, '_> {
                 match initialized {
                     true => self
                         .locals
-                        .insert(Cow::Borrowed(name), LocalMeta::initialized()),
+                        .insert(Cow::Borrowed(name), LocalMeta::var_def()),
                     false => self.locals.insert_with_default(Cow::Borrowed(name)),
                 }
                 buf.write(name);

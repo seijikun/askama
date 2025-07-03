@@ -493,24 +493,40 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
 }
 
 #[derive(Clone, Default)]
-struct LocalMeta {
+struct LocalVariableMeta {
     refs: Option<String>,
     initialized: bool,
 }
 
-impl LocalMeta {
-    fn initialized() -> Self {
-        Self {
+#[derive(Clone)]
+enum LocalMeta {
+    /// Normal variable
+    Variable(LocalVariableMeta),
+}
+
+impl<'a> LocalMeta {
+    /// Variable declaration only - no value yet.
+    const fn var_decl() -> Self {
+        Self::Variable(LocalVariableMeta {
             refs: None,
-            initialized: true,
-        }
+            initialized: false,
+        })
     }
 
-    fn with_ref(refs: String) -> Self {
-        Self {
+    /// Variable definition - fully initialized.
+    const fn var_def() -> Self {
+        Self::Variable(LocalVariableMeta {
+            refs: None,
+            initialized: true,
+        })
+    }
+
+    /// Variable referencing another
+    const fn var_with_ref(refs: String) -> Self {
+        Self::Variable(LocalVariableMeta {
             refs: Some(refs),
             initialized: true,
-        }
+        })
     }
 }
 
@@ -523,10 +539,16 @@ impl<'a> MapChain<'a> {
         Self { scopes: vec![] }
     }
 
-    /// Iterates the scopes in reverse and returns `Some(LocalMeta)`
-    /// from the first scope where `key` exists.
-    fn get<'b>(&'b self, key: &str) -> Option<&'b LocalMeta> {
-        self.scopes.iter().rev().find_map(|set| set.get(key))
+    /// Iterates the scopes in reverse and searches for a local variable with the given key.
+    ///
+    /// # Returns
+    /// - `Some(LocalVariableMeta)` if the first encountered entry for key was a variable
+    /// - `None` otherwise
+    fn get<'b>(&'b self, key: &str) -> Option<&'b LocalVariableMeta> {
+        match self.scopes.iter().rev().find_map(|set| set.get(key)) {
+            Some(LocalMeta::Variable(var)) => Some(var),
+            _ => None,
+        }
     }
 
     fn is_current_empty(&self) -> bool {
@@ -544,7 +566,7 @@ impl<'a> MapChain<'a> {
     }
 
     fn insert_with_default(&mut self, key: Cow<'a, str>) {
-        self.insert(key, LocalMeta::default());
+        self.insert(key, LocalMeta::var_decl());
     }
 
     fn resolve(&self, name: &str) -> Option<String> {
@@ -558,6 +580,14 @@ impl<'a> MapChain<'a> {
     fn resolve_or_self(&self, name: &str) -> String {
         let name = normalize_identifier(name);
         self.resolve(name).unwrap_or_else(|| format!("self.{name}"))
+    }
+
+    fn stack_push(&mut self) {
+        self.scopes.push(HashMap::default());
+    }
+
+    fn stack_pop(&mut self) {
+        self.scopes.pop().unwrap();
     }
 }
 

@@ -41,9 +41,9 @@ impl<'a> Generator<'a, '_> {
     where
         F: FnOnce(&mut Self) -> Result<T, CompileError>,
     {
-        self.locals.scopes.push(HashMap::default());
+        self.locals.stack_push();
         let res = callback(self);
-        self.locals.scopes.pop().unwrap();
+        self.locals.stack_pop();
         res
     }
 
@@ -55,7 +55,7 @@ impl<'a> Generator<'a, '_> {
     where
         F: FnOnce(&mut Generator<'a, 'b>) -> Result<T, CompileError>,
     {
-        self.locals.scopes.push(HashMap::default());
+        self.locals.stack_push();
 
         let buf_writable = mem::take(&mut self.buf_writable);
         let locals = mem::replace(&mut self.locals, MapChain::new_empty());
@@ -76,7 +76,7 @@ impl<'a> Generator<'a, '_> {
             ..
         } = child;
 
-        self.locals.scopes.pop().unwrap();
+        self.locals.stack_pop();
         res
     }
 
@@ -700,7 +700,7 @@ impl<'a> Generator<'a, '_> {
                     Expr::Var(name) if *name != "self" => {
                         let var = this.locals.resolve_or_self(name);
                         this.locals
-                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                            .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
                     }
                     Expr::AssociatedItem(obj, associated_item) => {
                         let mut associated_item_buf = Buffer::new();
@@ -709,7 +709,7 @@ impl<'a> Generator<'a, '_> {
                         let associated_item = associated_item_buf.into_string();
                         let var = this.locals.resolve(&associated_item).unwrap_or(associated_item);
                         this.locals
-                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                            .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
                     }
                     // Everything else still needs to become variables,
                     // to avoid having the same logic be executed
@@ -1130,8 +1130,10 @@ impl<'a> Generator<'a, '_> {
                                     // to avoid moving non-copyable values.
                                     &Expr::Var(name) if name != "self" => {
                                         let var = this.locals.resolve_or_self(name);
-                                        this.locals
-                                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                                        this.locals.insert(
+                                            Cow::Borrowed(arg),
+                                            LocalMeta::var_with_ref(var),
+                                        );
                                     }
                                     Expr::AssociatedItem(obj, associated_item) => {
                                         let mut associated_item_buf = Buffer::new();
@@ -1147,8 +1149,10 @@ impl<'a> Generator<'a, '_> {
                                             .locals
                                             .resolve(&associated_item)
                                             .unwrap_or(associated_item);
-                                        this.locals
-                                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                                        this.locals.insert(
+                                            Cow::Borrowed(arg),
+                                            LocalMeta::var_with_ref(var),
+                                        );
                                     }
                                     // Everything else still needs to become variables,
                                     // to avoid having the same logic be executed
