@@ -1,5 +1,6 @@
 mod expr;
 mod filter;
+mod helpers;
 mod node;
 
 use std::borrow::Cow;
@@ -85,7 +86,7 @@ struct Generator<'a, 'h> {
     /// Used in blocks to check if we are inside a filter block.
     is_in_filter_block: usize,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
-    seen_callers: Vec<(&'a Call<'a>, &'a Macro<'a>, Option<FileInfo<'a>>)>,
+    seen_callers: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
 }
 
 impl<'a, 'h> Generator<'a, 'h> {
