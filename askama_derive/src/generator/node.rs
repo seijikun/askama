@@ -995,7 +995,7 @@ impl<'a> Generator<'a, '_> {
             // A block definition contains a definition of another block
             (Some(cur_name), Some((_, _))) => (cur_name, 0),
             // `super()` was called inside a block
-            (None, Some((prev_name, gen))) => (prev_name, gen + 1),
+            (None, Some((prev_name, r#gen))) => (prev_name, r#gen + 1),
             // `super()` is called from outside a block
             (None, None) => {
                 return Err(ctx.generate_error("cannot call 'super()' outside block", node));
