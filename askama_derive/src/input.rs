@@ -299,10 +299,12 @@ impl TemplateInput<'_> {
                                 nested.push(&arm.nodes);
                             }
                         }
+                        Node::Call(c) => {
+                            nested.push(&c.nodes);
+                        }
                         Node::Lit(_)
                         | Node::Comment(_)
                         | Node::Expr(_, _)
-                        | Node::Call(_)
                         | Node::Extends(_)
                         | Node::Let(_)
                         | Node::Import(_)
