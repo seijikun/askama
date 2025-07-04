@@ -75,6 +75,23 @@ fn test_nested_macro_with_args() {
 }
 
 #[test]
+fn test_include_in_macro_block() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test_macro() -%}
+    {%- include "foo.html" -%}
+{%- endmacro -%}
+{%- call test_macro() %}{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct IncludeInMacroBlock;
+    let x = IncludeInMacroBlock {};
+    assert_eq!(x.render().unwrap(), "foo.html");
+}
+
+#[test]
 fn str_cmp() {
     #[derive(Template)]
     #[template(path = "macro-import-str-cmp.html")]

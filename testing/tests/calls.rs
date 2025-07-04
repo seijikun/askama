@@ -175,6 +175,47 @@ b: {{value.b}}
 }
 
 #[test]
+fn test_include_in_call_block() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test_macro() -%}
+    {{caller()}}
+{%- endmacro -%}
+{%- call test_macro() %}
+    {%- include "foo.html" -%}
+{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct IncludeInCallBlock;
+    let x = IncludeInCallBlock {};
+    assert_eq!(x.render().unwrap(), "foo.html");
+}
+
+#[test]
+fn test_include_in_call_block_in_macro() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro macro1() -%}
+    {{caller()}}
+{%- endmacro -%}
+{%- macro macro2() -%}
+    {%- call macro1() -%}
+        {%- include "foo.html" -%}
+    {%- endcall -%}
+{%- endmacro -%}
+{%- call macro2() %}{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct IncludeInCallBlock;
+    let x = IncludeInCallBlock {};
+    assert_eq!(x.render().unwrap(), "foo.html");
+}
+
+#[test]
 fn test_caller_args() {
     #[derive(Template)]
     #[template(
