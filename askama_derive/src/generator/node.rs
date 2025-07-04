@@ -563,6 +563,183 @@ impl<'a> Generator<'a, '_> {
         })
     }
 
+    fn write_macro_invocation_preamble(
+        &mut self,
+        ctx: &Context<'a>,
+        buf: &mut Buffer,
+        args: &Vec<WithSpan<'a, Expr<'a>>>,
+        def: &'a Macro<'a>,
+        span: Span<'a>,
+    ) -> Result<(), CompileError> {
+        let mut named_arguments: HashMap<&str, _, FxBuildHasher> = HashMap::default();
+        if let Some(Expr::NamedArgument(_, _)) = args.last().map(|expr| &**expr) {
+            // First we check that all named arguments actually exist in the called item.
+            for (index, arg) in args.iter().enumerate().rev() {
+                let Expr::NamedArgument(arg_name, _) = &**arg else {
+                    break;
+                };
+                if !def.args.iter().any(|(arg, _)| arg == arg_name) {
+                    return Err(ctx.generate_error(
+                        format_args!("no argument named `{arg_name}` in macro {}", def.name),
+                        span,
+                    ));
+                }
+                named_arguments.insert(arg_name, (index, arg));
+            }
+        }
+        let mut value = Buffer::new();
+        let mut allow_positional = true;
+        let mut used_named_args = vec![false; args.len()];
+        Ok(
+            for (index, (arg, default_value)) in def.args.iter().enumerate() {
+                let expr = if let Some((index, expr)) = named_arguments.get(arg) {
+                    used_named_args[*index] = true;
+                    allow_positional = false;
+                    expr
+                } else {
+                    match args.get(index) {
+                        Some(arg_expr) if !matches!(**arg_expr, Expr::NamedArgument(_, _)) => {
+                            // If there is already at least one named argument, then it's not allowed
+                            // to use unnamed ones at this point anymore.
+                            if !allow_positional {
+                                return Err(ctx.generate_error(
+                                format_args!(
+                                    "cannot have unnamed argument (`{arg}`) after named argument \
+                                            in call to macro {}", def.name
+                                ),
+                                span,
+                            ));
+                            }
+                            arg_expr
+                        }
+                        Some(arg_expr) if used_named_args[index] => {
+                            let Expr::NamedArgument(name, _) = **arg_expr else {
+                                unreachable!()
+                            };
+                            return Err(ctx.generate_error(
+                                format_args!("`{name}` is passed more than once"),
+                                span,
+                            ));
+                        }
+                        _ => {
+                            if let Some(default_value) = default_value {
+                                default_value
+                            } else {
+                                return Err(ctx.generate_error(
+                                    format_args!("missing `{arg}` argument"),
+                                    span,
+                                ));
+                            }
+                        }
+                    }
+                };
+                match &**expr {
+                    // If `expr` is already a form of variable then
+                    // don't reintroduce a new variable. This is
+                    // to avoid moving non-copyable values.
+                    Expr::Var(name) if *name != "self" => {
+                        let var = self.locals.resolve_or_self(name);
+                        self.locals
+                            .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
+                    }
+                    Expr::AssociatedItem(obj, associated_item) => {
+                        let mut associated_item_buf = Buffer::new();
+                        self.visit_associated_item(
+                            ctx,
+                            &mut associated_item_buf,
+                            obj,
+                            associated_item,
+                        )?;
+
+                        let associated_item = associated_item_buf.into_string();
+                        let var = self
+                            .locals
+                            .resolve(&associated_item)
+                            .unwrap_or(associated_item);
+                        self.locals
+                            .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
+                    }
+                    // Everything else still needs to become variables,
+                    // to avoid having the same logic be executed
+                    // multiple times, e.g. in the case of macro
+                    // parameters being used multiple times.
+                    _ => {
+                        value.clear();
+                        let (before, after) = if !is_copyable(expr) {
+                            ("&(", ")")
+                        } else {
+                            ("", "")
+                        };
+                        value.write(self.visit_expr_root(ctx, expr)?);
+                        // We need to normalize the arg to write it, thus we need to add it to
+                        // locals in the normalized manner
+                        let normalized_arg = normalize_identifier(arg);
+                        buf.write(format_args!(
+                            "let {normalized_arg} = {before}{value}{after};"
+                        ));
+                        self.locals
+                            .insert_with_default(Cow::Borrowed(normalized_arg));
+                    }
+                }
+            },
+        )
+    }
+
+    fn write_macro_invocation(
+        &mut self,
+        callsite_ctx: &Context<'a>,
+        buf: &mut Buffer,
+        span: Span<'a>,
+        call: Option<&'a WithSpan<'a, Call<'a>>>,
+        call_ws: Ws,
+        args: &Vec<WithSpan<'a, Expr<'a>>>,
+        def: &'a Macro<'a>,
+        macro_ctx: &Context<'a>,
+    ) -> Result<usize, CompileError> {
+        if self.seen_callers.iter().any(|(s, _)| std::ptr::eq(*s, def)) {
+            let mut message = "Found recursion in macro calls:".to_owned();
+            for (m, f) in &self.seen_callers {
+                if let Some(f) = f {
+                    write!(message, "{f}").unwrap();
+                } else {
+                    write!(message, "\n`{}`", m.name.escape_debug()).unwrap();
+                }
+            }
+            return Err(callsite_ctx.generate_error(message, span));
+        } else {
+            self.seen_callers
+                .push((def, callsite_ctx.file_info_of(span)));
+        }
+
+        self.push_locals(|this| {
+            if let Some(call) = call {
+                this.locals.insert(
+                    "caller".into(),
+                    LocalMeta::caller(call, callsite_ctx.clone()),
+                );
+            }
+
+            macro_call_ensure_arg_count(span, args, def, callsite_ctx)?;
+
+            this.flush_ws(call_ws); // Cannot handle_ws() here: whitespace from macro definition comes first
+            this.write_buf_writable(callsite_ctx, buf)?;
+            buf.write('{');
+            this.prepare_ws(def.ws1);
+
+            this.write_macro_invocation_preamble(callsite_ctx, buf, args, def, span)?;
+
+            let mut size_hint = this.handle(macro_ctx, &def.nodes, buf, AstLevel::Nested)?;
+
+            this.flush_ws(def.ws2);
+            size_hint += this.write_buf_writable(callsite_ctx, buf)?;
+            buf.write('}');
+
+            this.prepare_ws(call_ws);
+            this.seen_callers.pop();
+            Ok(size_hint)
+        })
+    }
+
     fn write_call(
         &mut self,
         ctx: &Context<'a>,
@@ -599,150 +776,19 @@ impl<'a> Generator<'a, '_> {
             (*def, ctx)
         };
 
-        if self
-            .seen_callers
-            .iter()
-            .any(|(_, s, _)| std::ptr::eq(*s, def))
-        {
-            let mut message = "Found recursion in macro calls:".to_owned();
-            for (_, m, f) in &self.seen_callers {
-                if let Some(f) = f {
-                    write!(message, "{f}").unwrap();
-                } else {
-                    write!(message, "\n`{}`", m.name.escape_debug()).unwrap();
-                }
-            }
-            return Err(ctx.generate_error(message, call.span()));
-        } else {
-            self.seen_callers
-                .push((call, def, ctx.file_info_of(call.span())));
-        }
-        self.flush_ws(ws1); // Cannot handle_ws() here: whitespace from macro definition comes first
-        let size_hint = self.push_locals(|this| {
-            this.locals.insert("caller".into(), LocalMeta::caller(call, ctx.clone()));
-
-            macro_call_ensure_arg_count(call, def, ctx)?;
-
-            this.write_buf_writable(ctx, buf)?;
-            buf.write('{');
-            this.prepare_ws(def.ws1);
-
-            let mut named_arguments: HashMap<&str, _, FxBuildHasher> = HashMap::default();
-            // Since named arguments can only be passed last, we only need to check if the last argument
-            // is a named one.
-            if let Some(Expr::NamedArgument(_, _)) = args.last().map(|expr| &**expr) {
-                // First we check that all named arguments actually exist in the called item.
-                for (index, arg) in args.iter().enumerate().rev() {
-                    let Expr::NamedArgument(arg_name, _) = &**arg else {
-                        break;
-                    };
-                    if !def.args.iter().any(|(arg, _)| arg == arg_name) {
-                        return Err(ctx.generate_error(
-                            format_args!("no argument named `{arg_name}` in macro {name:?}"),
-                            call.span(),
-                        ));
-                    }
-                    named_arguments.insert(arg_name, (index, arg));
-                }
-            }
-
-            let mut value = Buffer::new();
-
-            // Handling both named and unnamed arguments requires to be careful of the named arguments
-            // order. To do so, we iterate through the macro defined arguments and then check if we have
-            // a named argument with this name:
-            //
-            // * If there is one, we add it and move to the next argument.
-            // * If there isn't one, then we pick the next argument (we can do it without checking
-            //   anything since named arguments are always last).
-            let mut allow_positional = true;
-            let mut used_named_args = vec![false; args.len()];
-            for (index, (arg, default_value)) in def.args.iter().enumerate() {
-                let expr = if let Some((index, expr)) = named_arguments.get(arg) {
-                    used_named_args[*index] = true;
-                    allow_positional = false;
-                    expr
-                } else {
-                    match args.get(index) {
-                        Some(arg_expr) if !matches!(**arg_expr, Expr::NamedArgument(_, _)) => {
-                            // If there is already at least one named argument, then it's not allowed
-                            // to use unnamed ones at this point anymore.
-                            if !allow_positional {
-                                return Err(ctx.generate_error(
-                                    format_args!(
-                                        "cannot have unnamed argument (`{arg}`) after named argument \
-                                         in call to macro {name:?}"
-                                    ),
-                                    call.span(),
-                                ));
-                            }
-                            arg_expr
-                        }
-                        Some(arg_expr) if used_named_args[index] => {
-                            let Expr::NamedArgument(name, _) = **arg_expr else { unreachable!() };
-                            return Err(ctx.generate_error(
-                                format_args!("`{name}` is passed more than once"),
-                                call.span(),
-                            ));
-                        }
-                        _ => {
-                            if let Some(default_value) = default_value {
-                                default_value
-                            } else {
-                                return Err(ctx.generate_error(format_args!("missing `{arg}` argument"), call.span()));
-                            }
-                        }
-                    }
-                };
-                match &**expr {
-                    // If `expr` is already a form of variable then
-                    // don't reintroduce a new variable. This is
-                    // to avoid moving non-copyable values.
-                    Expr::Var(name) if *name != "self" => {
-                        let var = this.locals.resolve_or_self(name);
-                        this.locals
-                            .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
-                    }
-                    Expr::AssociatedItem(obj, associated_item) => {
-                        let mut associated_item_buf = Buffer::new();
-                        this.visit_associated_item(ctx, &mut associated_item_buf, obj, associated_item)?;
-
-                        let associated_item = associated_item_buf.into_string();
-                        let var = this.locals.resolve(&associated_item).unwrap_or(associated_item);
-                        this.locals
-                            .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
-                    }
-                    // Everything else still needs to become variables,
-                    // to avoid having the same logic be executed
-                    // multiple times, e.g. in the case of macro
-                    // parameters being used multiple times.
-                    _ => {
-                        value.clear();
-                        let (before, after) = if !is_copyable(expr) {
-                            ("&(", ")")
-                        } else {
-                            ("", "")
-                        };
-                        value.write(this.visit_expr_root(ctx, expr)?);
-                        // We need to normalize the arg to write it, thus we need to add it to
-                        // locals in the normalized manner
-                        let normalized_arg = normalize_identifier(arg);
-                        buf.write(format_args!("let {normalized_arg} = {before}{value}{after};"));
-                        this.locals.insert_with_default(Cow::Borrowed(normalized_arg));
-                    }
-                }
-            }
-
-            let mut size_hint = this.handle(own_ctx, &def.nodes, buf, AstLevel::Nested)?;
-
-            this.flush_ws(def.ws2);
-            size_hint += this.write_buf_writable(ctx, buf)?;
-            buf.write('}');
-            Ok(size_hint)
-        })?;
-        self.prepare_ws(ws2);
-        self.seen_callers.pop();
-        Ok(size_hint)
+        // whitespaces for the invocation is constructed from
+        // - call-block's outer (start)
+        // - endcall-block's outer (end)
+        self.write_macro_invocation(
+            ctx,
+            buf,
+            call.span(),
+            Some(call),
+            Ws(ws1.0, ws2.1),
+            args,
+            def,
+            own_ctx,
+        )
     }
 
     fn write_filter_block(
@@ -1559,26 +1605,27 @@ fn median(sizes: &mut [usize]) -> usize {
 }
 
 fn macro_call_ensure_arg_count(
-    call: &WithSpan<'_, Call<'_>>,
+    span: Span<'_>,
+    call_args: &Vec<WithSpan<'_, Expr<'_>>>,
     def: &Macro<'_>,
     ctx: &Context<'_>,
 ) -> Result<(), CompileError> {
-    if call.args.len() > def.args.len() {
+    if call_args.len() > def.args.len() {
         return Err(ctx.generate_error(
             format_args!(
                 "macro `{}` expected {} argument{}, found {}",
                 def.name,
                 def.args.len(),
                 if def.args.len() > 1 { "s" } else { "" },
-                call.args.len(),
+                call_args.len(),
             ),
-            call.span(),
+            span,
         ));
     }
 
     // First we list of arguments position, then we remove every argument with a value.
     let mut args: Vec<_> = def.args.iter().map(|&(name, _)| Some(name)).collect();
-    for (pos, arg) in call.args.iter().enumerate() {
+    for (pos, arg) in call_args.iter().enumerate() {
         let pos = match **arg {
             Expr::NamedArgument(name, ..) => {
                 def.args.iter().position(|(arg_name, _)| *arg_name == name)
@@ -1593,7 +1640,7 @@ fn macro_call_ensure_arg_count(
                         "argument `{}` was passed more than once when calling macro `{}`",
                         def.args[pos].0, def.name,
                     ),
-                    call.span(),
+                    span,
                 ));
             }
         }
@@ -1646,7 +1693,7 @@ fn macro_call_ensure_arg_count(
     if fmt_missing.count == 0 {
         Ok(())
     } else {
-        Err(ctx.generate_error(fmt_missing, call.span()))
+        Err(ctx.generate_error(fmt_missing, span))
     }
 }
 
