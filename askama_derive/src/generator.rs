@@ -502,6 +502,11 @@ struct LocalCallerMeta<'a> {
 }
 
 #[derive(Clone)]
+struct LocalMacroMeta<'a> {
+    def: &'a Macro<'a>,
+}
+
+#[derive(Clone)]
 enum LocalMeta<'a> {
     /// Normal variable
     Variable(LocalVariableMeta),
