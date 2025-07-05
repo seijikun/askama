@@ -110,9 +110,11 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> ParseResul
             }
             Ok(())
         }
-        Expr::As(elem, _) | Expr::Unary(_, elem) | Expr::Group(elem) => {
-            check_expr(elem, Allowed::default())
-        }
+        Expr::As(elem, _)
+        | Expr::Unary(_, elem)
+        | Expr::Group(elem)
+        | Expr::NamedArgument(_, elem)
+        | Expr::Try(elem) => check_expr(elem, Allowed::default()),
         Expr::Call(v) => {
             check_expr(
                 &v.path,
@@ -126,17 +128,20 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> ParseResul
             }
             Ok(())
         }
+        Expr::Filter(filter) => {
+            for arg in &filter.arguments {
+                check_expr(arg, Allowed::default())?;
+            }
+            Ok(())
+        }
+        Expr::LetCond(cond) => check_expr(&cond.expr, Allowed::default()),
         Expr::ArgumentPlaceholder => cut_error!("unreachable", expr.span),
         Expr::BoolLit(_)
         | Expr::NumLit(_, _)
         | Expr::StrLit(_)
         | Expr::CharLit(_)
-        | Expr::Filter(_)
-        | Expr::NamedArgument(_, _)
         | Expr::RustMacro(_, _)
-        | Expr::Try(_)
-        | Expr::FilterSource
-        | Expr::LetCond(_) => Ok(()),
+        | Expr::FilterSource => Ok(()),
     }
 }
 

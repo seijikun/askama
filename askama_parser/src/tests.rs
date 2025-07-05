@@ -1592,3 +1592,45 @@ fn test_macro_call_nested_comments() {
         )],
     );
 }
+
+#[test]
+fn test_try_reserved_raw_identifier() {
+    // Regression test for <https://issues.oss-fuzz.com/issues/429130577>.
+    let syntax = Syntax::default();
+
+    for id in ["crate", "super", "Self"] {
+        let msg = format!("`{id}` cannot be used as an identifier");
+        assert!(
+            Ast::from_str(&format!("{{{{ {id}? }}}}"), None, &syntax)
+                .unwrap_err()
+                .to_string()
+                .contains(&msg),
+        );
+        assert!(
+            Ast::from_str(&format!("{{{{ {id}|filter }}}}"), None, &syntax)
+                .unwrap_err()
+                .to_string()
+                .contains(&msg),
+        );
+        assert!(
+            Ast::from_str(
+                &format!("{{{{ var|filter(arg1, {id}, arg3) }}}}"),
+                None,
+                &syntax
+            )
+            .unwrap_err()
+            .to_string()
+            .contains(&msg),
+        );
+        assert!(
+            Ast::from_str(
+                &format!("{{{{ var|filter(arg1=arg1, arg2={id}, arg3=arg3) }}}}"),
+                None,
+                &syntax
+            )
+            .unwrap_err()
+            .to_string()
+            .contains(&msg),
+        );
+    }
+}
