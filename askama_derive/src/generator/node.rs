@@ -1002,105 +1002,150 @@ impl<'a> Generator<'a, '_> {
                 }
             }
 
-            let var_name = match *v.path {
-                Expr::Var(var_name) => Some(var_name),
-                _ => None,
-            };
-            let caller_alias = var_name.and_then(|vn| self.locals.get_caller(vn));
+            // handle some special cases for call-expressions
+            if let Expr::Var(var_name) = *v.path {
+                let caller_alias = self.locals.get_caller(var_name);
 
-            if let Some("super") = var_name {
-                check_num_args(s, ctx, 0, v.args.len(), "super")?;
-                return self.write_block(ctx, buf, None, ws, s.span());
-            } else if let Some("caller") = var_name
-                && caller_alias.is_none()
-            {
+                // use of special keyword `super`:
+                if var_name == "super" {
+                    check_num_args(s, ctx, 0, v.args.len(), "super")?;
+                    return self.write_block(ctx, buf, None, ws, s.span());
+                }
+
                 // attempted to use keyword `caller` - but no caller is currently in scope
-                return Err(ctx.generate_error("block is not defined for `caller`", s.span()));
-            } else if let Some(LocalCallerMeta { call_ctx, def }) = caller_alias.cloned() {
-                self.handle_ws(ws);
-                let size_hint = self.push_locals(|this| {
-                    // Block-out the special caller() variable from this scope onward until it is defined by a
-                    // new call-block again. This prohibits a caller from calling itself.
-                    this.locals.insert("caller".into(), LocalMeta::Negative);
+                if var_name == "caller" && caller_alias.is_none() {
+                    return Err(ctx.generate_error("block is not defined for `caller`", s.span()));
+                }
 
-                    this.write_buf_writable(&call_ctx, buf)?;
-                    buf.write('{');
-                    this.prepare_ws(def.ws1);
-                    let mut value = Buffer::new();
-                    check_num_args(s, &call_ctx, def.caller_args.len(), v.args.len(), "caller")?;
-                    for (index, arg) in def.caller_args.iter().enumerate() {
-                        match v.args.get(index) {
-                            Some(expr) => {
-                                value.clear();
-                                match &**expr {
-                                    // If `expr` is already a form of variable then
-                                    // don't reintroduce a new variable. This is
-                                    // to avoid moving non-copyable values.
-                                    &Expr::Var(name) if name != "self" => {
-                                        let var = this.locals.resolve_or_self(name);
-                                        this.locals.insert(
-                                            Cow::Borrowed(arg),
-                                            LocalMeta::var_with_ref(var),
-                                        );
-                                    }
-                                    Expr::AssociatedItem(obj, associated_item) => {
-                                        let mut associated_item_buf = Buffer::new();
-                                        this.visit_associated_item(
-                                            &call_ctx,
-                                            &mut associated_item_buf,
-                                            obj,
-                                            associated_item,
-                                        )?;
+                // short call-expression for macro invocations, like `{{ macro_name() }}`.
+                if let Some(macro_def) = ctx.macros.get(var_name) {
+                    return helpers::MacroInvocation {
+                        callsite_ctx: ctx,
+                        callsite_span: s.span(),
+                        call: None,
+                        callsite_ws: ws,
+                        call_args: &v.args,
+                        macro_def,
+                        macro_ctx: ctx,
+                    }
+                    .write(buf, self);
+                }
 
-                                        let associated_item = associated_item_buf.into_string();
-                                        let var = this
-                                            .locals
-                                            .resolve(&associated_item)
-                                            .unwrap_or(associated_item);
-                                        this.locals.insert(
-                                            Cow::Borrowed(arg),
-                                            LocalMeta::var_with_ref(var),
-                                        );
-                                    }
-                                    // Everything else still needs to become variables,
-                                    // to avoid having the same logic be executed
-                                    // multiple times, e.g. in the case of macro
-                                    // parameters being used multiple times.
-                                    _ => {
-                                        let (before, after) = if !is_copyable(expr) {
-                                            ("&(", ")")
-                                        } else {
-                                            ("", "")
-                                        };
-                                        value.write(this.visit_expr_root(&call_ctx, expr)?);
-                                        // We need to normalize the arg to write it, thus we need to add it to
-                                        // locals in the normalized manner
-                                        let normalized_arg = normalize_identifier(arg);
-                                        buf.write(format_args!(
-                                            "let {normalized_arg} = {before}{value}{after};"
-                                        ));
-                                        this.locals
-                                            .insert_with_default(Cow::Borrowed(normalized_arg));
+                // the called variable is an alias to some macro's `caller()`.
+                // This is either `caller()` itself, or an alias created by  `{% set alias = caller %}`.
+                if let Some(LocalCallerMeta { call_ctx, def }) = caller_alias.cloned() {
+                    self.handle_ws(ws);
+                    let size_hint = self.push_locals(|this| {
+                        // Block-out the special caller() variable from this scope onward until it is defined by a
+                        // new call-block again. This prohibits a caller from calling itself.
+                        this.locals.insert("caller".into(), LocalMeta::Negative);
+
+                        this.write_buf_writable(&call_ctx, buf)?;
+                        buf.write('{');
+                        this.prepare_ws(def.ws1);
+                        let mut value = Buffer::new();
+                        check_num_args(
+                            s,
+                            &call_ctx,
+                            def.caller_args.len(),
+                            v.args.len(),
+                            "caller",
+                        )?;
+                        for (index, arg) in def.caller_args.iter().enumerate() {
+                            match v.args.get(index) {
+                                Some(expr) => {
+                                    value.clear();
+                                    match &**expr {
+                                        // If `expr` is already a form of variable then
+                                        // don't reintroduce a new variable. This is
+                                        // to avoid moving non-copyable values.
+                                        &Expr::Var(name) if name != "self" => {
+                                            let var = this.locals.resolve_or_self(name);
+                                            this.locals.insert(
+                                                Cow::Borrowed(arg),
+                                                LocalMeta::var_with_ref(var),
+                                            );
+                                        }
+                                        Expr::AssociatedItem(obj, associated_item) => {
+                                            let mut associated_item_buf = Buffer::new();
+                                            this.visit_associated_item(
+                                                &call_ctx,
+                                                &mut associated_item_buf,
+                                                obj,
+                                                associated_item,
+                                            )?;
+
+                                            let associated_item = associated_item_buf.into_string();
+                                            let var = this
+                                                .locals
+                                                .resolve(&associated_item)
+                                                .unwrap_or(associated_item);
+                                            this.locals.insert(
+                                                Cow::Borrowed(arg),
+                                                LocalMeta::var_with_ref(var),
+                                            );
+                                        }
+                                        // Everything else still needs to become variables,
+                                        // to avoid having the same logic be executed
+                                        // multiple times, e.g. in the case of macro
+                                        // parameters being used multiple times.
+                                        _ => {
+                                            let (before, after) = if !is_copyable(expr) {
+                                                ("&(", ")")
+                                            } else {
+                                                ("", "")
+                                            };
+                                            value.write(this.visit_expr_root(&call_ctx, expr)?);
+                                            // We need to normalize the arg to write it, thus we need to add it to
+                                            // locals in the normalized manner
+                                            let normalized_arg = normalize_identifier(arg);
+                                            buf.write(format_args!(
+                                                "let {normalized_arg} = {before}{value}{after};"
+                                            ));
+                                            this.locals
+                                                .insert_with_default(Cow::Borrowed(normalized_arg));
+                                        }
                                     }
                                 }
-                            }
-                            None => {
-                                return Err(call_ctx.generate_error(
-                                    format_args!("missing `{arg}` argument in `caller`"),
-                                    s.span(),
-                                ));
+                                None => {
+                                    return Err(call_ctx.generate_error(
+                                        format_args!("missing `{arg}` argument in `caller`"),
+                                        s.span(),
+                                    ));
+                                }
                             }
                         }
-                    }
-                    let mut size_hint =
-                        this.handle(&call_ctx, &def.nodes, buf, AstLevel::Nested)?;
+                        let mut size_hint =
+                            this.handle(&call_ctx, &def.nodes, buf, AstLevel::Nested)?;
 
-                    this.flush_ws(def.ws2);
-                    size_hint += this.write_buf_writable(&call_ctx, buf)?;
-                    buf.write('}');
-                    Ok(size_hint)
-                })?;
-                return Ok(size_hint);
+                        this.flush_ws(def.ws2);
+                        size_hint += this.write_buf_writable(&call_ctx, buf)?;
+                        buf.write('}');
+                        Ok(size_hint)
+                    })?;
+                    return Ok(size_hint);
+                }
+            }
+
+            // short call-expression for scoped macro invocations, like `{{ scope::macro_name() }}`.
+            if let Expr::Path(path_components) = &*v.path
+                && path_components.len() == 2
+                && path_components[0].generics.is_empty()
+                && path_components[1].generics.is_empty()
+                && let Some(import) = ctx.imports.get(&path_components[0].name)
+                && let Some(import_ctx) = self.contexts.get(import)
+                && let Some(macro_def) = import_ctx.macros.get(&path_components[1].name)
+            {
+                return helpers::MacroInvocation {
+                    callsite_ctx: ctx,
+                    callsite_span: s.span(),
+                    call: None,
+                    callsite_ws: ws,
+                    call_args: &v.args,
+                    macro_def,
+                    macro_ctx: import_ctx,
+                }
+                .write(buf, self);
             }
         }
 

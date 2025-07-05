@@ -344,7 +344,7 @@ impl<'a, 'h> Generator<'a, 'h> {
     }
 
     fn is_var_defined(&self, var_name: &str) -> bool {
-        self.locals.get(var_name).is_some() || self.input.fields.iter().any(|f| f == var_name)
+        self.locals.get_any(var_name).is_some() || self.input.fields.iter().any(|f| f == var_name)
     }
 }
 
@@ -554,6 +554,19 @@ struct MapChain<'a> {
 impl<'a> MapChain<'a> {
     fn new_empty() -> Self {
         Self { scopes: vec![] }
+    }
+
+    /// Iterates the scopes in reverse and searches for a local variable (of any kind) with the given key.
+    ///
+    /// # Returns
+    /// - `Some(LocalMeta)` if any kind of local entry (except negative) with the key was found.
+    /// - `None` otherwise
+    fn get_any<'b>(&'b self, key: &str) -> Option<&'b LocalMeta<'a>> {
+        match self.scopes.iter().rev().find_map(|set| set.get(key)) {
+            Some(LocalMeta::Negative) => None,
+            Some(local) => Some(local),
+            _ => None,
+        }
     }
 
     /// Iterates the scopes in reverse and searches for a local variable with the given key.
