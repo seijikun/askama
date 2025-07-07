@@ -1634,3 +1634,46 @@ fn test_try_reserved_raw_identifier() {
         );
     }
 }
+
+#[test]
+fn test_isolated_cr_in_raw_string() {
+    // Regression test for <https://issues.oss-fuzz.com/issues/429645376>.
+    let syntax = Syntax::default();
+
+    assert!(
+        Ast::from_str("{{ x!(\"hello\rworld\") }}", None, &syntax)
+            .unwrap_err()
+            .to_string()
+            .contains("a bare CR (Mac linebreak) is not allowed in string literals"),
+    );
+    assert!(
+        Ast::from_str("{{ x!(c\"hello\rworld\") }}", None, &syntax)
+            .unwrap_err()
+            .to_string()
+            .contains("a bare CR (Mac linebreak) is not allowed in string literals"),
+    );
+    assert!(
+        Ast::from_str("{{ x!(b\"hello\rworld\") }}", None, &syntax)
+            .unwrap_err()
+            .to_string()
+            .contains("a bare CR (Mac linebreak) is not allowed in string literals"),
+    );
+    assert!(
+        Ast::from_str("{{ x!(r\"hello\rworld\") }}", None, &syntax)
+            .unwrap_err()
+            .to_string()
+            .contains("a bare CR (Mac linebreak) is not allowed in string literals"),
+    );
+    assert!(
+        Ast::from_str("{{ x!(cr\"hello\rworld\") }}", None, &syntax)
+            .unwrap_err()
+            .to_string()
+            .contains("a bare CR (Mac linebreak) is not allowed in string literals"),
+    );
+    assert!(
+        Ast::from_str("{{ x!(br\"hello\rworld\") }}", None, &syntax)
+            .unwrap_err()
+            .to_string()
+            .contains("a bare CR (Mac linebreak) is not allowed in string literals"),
+    );
+}
