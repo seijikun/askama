@@ -908,6 +908,17 @@ impl<'a> Suffix<'a> {
                 };
                 *i = j;
 
+                if inner.split('\r').skip(1).any(|s| !s.starts_with('\n')) {
+                    return cut_error!(
+                        format!(
+                            "a bare CR (Mac linebreak) is not allowed in string literals, \
+                            use NL (Unix linebreak) or CRNL (Windows linebreak) instead, \
+                            or type `\\r` explicitly",
+                        ),
+                        prefix,
+                    );
+                }
+
                 let msg = match str_kind {
                     Some(StrPrefix::Binary) => inner
                         .bytes()
