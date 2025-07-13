@@ -822,53 +822,61 @@ impl<'a> Suffix<'a> {
         }
 
         fn line_comment<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
-            let start = "//".parse_next(i)?;
-            let is_doc_comment = alt((
-                ('/', not(peek('/'))).value(true),
-                '!'.value(true),
-                empty.value(false),
-            ))
-            .parse_next(i)?;
-            if opt(take_until(.., '\n')).parse_next(i)?.is_none() {
-                return cut_error!(
-                    format!(
-                        "you are probably missing a line break to end {}comment",
-                        if is_doc_comment { "doc " } else { "" }
-                    ),
-                    start,
-                );
-            }
-            Ok(())
-        }
-
-        fn block_comment<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
-            let start = "/*".parse_next(i)?;
-            let is_doc_comment = alt((
-                ('*', not(peek(one_of(['*', '/'])))).value(true),
-                '!'.value(true),
-                empty.value(false),
-            ))
-            .parse_next(i)?;
-
-            let mut depth = 0usize;
-            loop {
-                if opt(take_until(.., ("/*", "*/"))).parse_next(i)?.is_none() {
+            fn inner<'a>(i: &mut &'a str) -> ParseResult<'a, bool> {
+                let start = "//".parse_next(i)?;
+                let is_doc_comment = alt((
+                    ('/', not(peek('/'))).value(true),
+                    '!'.value(true),
+                    empty.value(false),
+                ))
+                .parse_next(i)?;
+                if opt((take_until(.., '\n'), '\n')).parse_next(i)?.is_none() {
                     return cut_error!(
                         format!(
-                            "missing `*/` to close block {}comment",
+                            "you are probably missing a line break to end {}comment",
                             if is_doc_comment { "doc " } else { "" }
                         ),
                         start,
                     );
-                } else if alt(("/*".value(true), "*/".value(false))).parse_next(i)? {
-                    // cannot overflow: `i` cannot be longer than `isize::MAX`, cf. [std::alloc::Layout]
-                    depth += 1;
-                } else if let Some(new_depth) = depth.checked_sub(1) {
-                    depth = new_depth;
-                } else {
-                    return Ok(());
+                };
+                Ok(is_doc_comment)
+            }
+
+            doc_comment_no_bare_cr(i, inner)
+        }
+
+        fn block_comment<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
+            fn inner<'a>(i: &mut &'a str) -> ParseResult<'a, bool> {
+                let start = "/*".parse_next(i)?;
+                let is_doc_comment = alt((
+                    ('*', not(peek(one_of(['*', '/'])))).value(true),
+                    '!'.value(true),
+                    empty.value(false),
+                ))
+                .parse_next(i)?;
+
+                let mut depth = 0usize;
+                loop {
+                    if opt(take_until(.., ("/*", "*/"))).parse_next(i)?.is_none() {
+                        return cut_error!(
+                            format!(
+                                "missing `*/` to close block {}comment",
+                                if is_doc_comment { "doc " } else { "" }
+                            ),
+                            start,
+                        );
+                    } else if alt(("/*".value(true), "*/".value(false))).parse_next(i)? {
+                        // cannot overflow: `i` cannot be longer than `isize::MAX`, cf. [std::alloc::Layout]
+                        depth += 1;
+                    } else if let Some(new_depth) = depth.checked_sub(1) {
+                        depth = new_depth;
+                    } else {
+                        return Ok(is_doc_comment);
+                    }
                 }
             }
+
+            doc_comment_no_bare_cr(i, inner)
         }
 
         fn identifier_or_prefixed_string<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
@@ -1090,6 +1098,22 @@ impl<'a> Suffix<'a> {
 
     fn r#try(i: &mut &'a str) -> ParseResult<'a, Self> {
         preceded(skip_ws0, '?').map(|_| Self::Try).parse_next(i)
+    }
+}
+
+fn doc_comment_no_bare_cr<'a>(
+    i: &mut &'a str,
+    inner: fn(i: &mut &'a str) -> ParseResult<'a, bool>,
+) -> ParseResult<'a, ()> {
+    let (is_doc_comment, comment) = inner.with_taken().parse_next(i)?;
+    if is_doc_comment && comment.split('\r').skip(1).any(|s| !s.starts_with('\n')) {
+        cut_error!(
+            "bare CR not allowed in doc comment, 
+            use NL (Unix linebreak) or CRNL (Windows linebreak) instead",
+            comment,
+        )
+    } else {
+        Ok(())
     }
 }
 

@@ -1354,3 +1354,59 @@ fn test_macro_call_valid_raw_cstring() -> Result<(), syn::Error> {
     let _: syn::File = syn::parse2(output)?;
     Ok(())
 }
+
+#[test]
+fn test_bare_cr_doc_comment() -> Result<(), syn::Error> {
+    // Regression test for <https://issues.oss-fuzz.com/issues/431448399>.
+    // Doc comment `///` must not contain bare CRs, except a CRLF to end the comment.
+
+    #[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/5489>
+    let input = quote! {
+        #[template(ext = "", source = "{{ e!(/// \r \n) }}")]
+//                                               ^^ CR not directly followed by LF
+        enum l {}
+    };
+    let output = derive_template(input, import_askama);
+    assert!(
+        output
+            .to_string()
+            .contains("bare CR not allowed in doc comment")
+    );
+    let _: syn::File = syn::parse2(output)?;
+
+    #[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/5489>
+    let input = quote! {
+        #[template(ext = "", source = "{{ e!(/** \r */) }}")]
+//                                               ^^ CR not directly followed by LF
+        enum l {}
+    };
+    let output = derive_template(input, import_askama);
+    assert!(
+        output
+            .to_string()
+            .contains("bare CR not allowed in doc comment")
+    );
+    let _: syn::File = syn::parse2(output)?;
+
+    #[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/5489>
+    let input = quote! {
+        #[template(ext = "", source = "{{ e!(/// \r\n) }}")]
+//                                               ^^^^ CR is directly followed by LF
+        enum l {}
+    };
+    let output = derive_template(input, import_askama);
+    assert!(!output.to_string().contains("compile_error"));
+    let _: syn::File = syn::parse2(output)?;
+
+    #[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/5489>
+    let input = quote! {
+        #[template(ext = "", source = "{{ e!(/** \r\n */) }}")]
+//                                               ^^^^ CR is directly followed by LF
+        enum l {}
+    };
+    let output = derive_template(input, import_askama);
+    assert!(!output.to_string().contains("compile_error"));
+    let _: syn::File = syn::parse2(output)?;
+
+    Ok(())
+}
