@@ -71,10 +71,10 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> ParseResul
             }
         }
         Expr::Path(path) => {
-            if let &[name] = path.as_slice() {
-                if !crate::can_be_variable_name(name) {
-                    return err_reserved_identifier(name);
-                }
+            if let &[name] = path.as_slice()
+                && !crate::can_be_variable_name(name)
+            {
+                return err_reserved_identifier(name);
             }
             Ok(())
         }
@@ -996,25 +996,24 @@ impl<'a> Suffix<'a> {
             const THREE_CHARS: &[&str] = &["<<=", ">>=", "...", "..="];
 
             // need to check long to short
-            if let Some((head, tail)) = i.split_at_checked(3) {
-                if THREE_CHARS.contains(&head) {
-                    *i = tail;
-                    return Ok(());
-                }
+            if let Some((head, tail)) = i.split_at_checked(3)
+                && THREE_CHARS.contains(&head)
+            {
+                *i = tail;
+                return Ok(());
             }
-            if let Some((head, tail)) = i.split_at_checked(2) {
-                if TWO_CHARS.contains(&head) {
-                    *i = tail;
-                    return Ok(());
-                }
+            if let Some((head, tail)) = i.split_at_checked(2)
+                && TWO_CHARS.contains(&head)
+            {
+                *i = tail;
+                return Ok(());
             }
-            if let Some((head, tail)) = i.split_at_checked(1) {
-                if let [head] = head.as_bytes() {
-                    if ONE_CHAR.contains(head) {
-                        *i = tail;
-                        return Ok(());
-                    }
-                }
+            if let Some((head, tail)) = i.split_at_checked(1)
+                && let [head] = head.as_bytes()
+                && ONE_CHAR.contains(head)
+            {
+                *i = tail;
+                return Ok(());
             }
             fail(i)
         }

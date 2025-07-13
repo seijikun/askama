@@ -42,12 +42,12 @@ impl<'a> Node<'a> {
         let result = match (|i: &mut _| Self::many(i, s)).parse_next(i) {
             Ok(result) => result,
             Err(err) => {
-                if let ErrMode::Backtrack(err) | ErrMode::Cut(err) = &err {
-                    if err.message.is_none() {
-                        *i = start;
-                        if let Some(mut span) = err.span.as_suffix_of(i) {
-                            opt(|i: &mut _| unexpected_tag(i, s)).parse_next(&mut span)?;
-                        }
+                if let ErrMode::Backtrack(err) | ErrMode::Cut(err) = &err
+                    && err.message.is_none()
+                {
+                    *i = start;
+                    if let Some(mut span) = err.span.as_suffix_of(i) {
+                        opt(|i: &mut _| unexpected_tag(i, s)).parse_next(&mut span)?;
                     }
                 }
                 return Err(err);
@@ -216,12 +216,12 @@ fn cut_node<'a, O>(
     move |i: &mut &'a str| {
         let start = *i;
         let result = inner.parse_next(i);
-        if let Err(ErrMode::Cut(err) | ErrMode::Backtrack(err)) = &result {
-            if err.message.is_none() {
-                *i = start;
-                if let Some(mut span) = err.span.as_suffix_of(i) {
-                    opt(|i: &mut _| unexpected_raw_tag(kind, i)).parse_next(&mut span)?;
-                }
+        if let Err(ErrMode::Cut(err) | ErrMode::Backtrack(err)) = &result
+            && err.message.is_none()
+        {
+            *i = start;
+            if let Some(mut span) = err.span.as_suffix_of(i) {
+                opt(|i: &mut _| unexpected_raw_tag(kind, i)).parse_next(&mut span)?;
             }
         }
         result
@@ -414,14 +414,14 @@ impl<'a> CondTest<'a> {
             ws(|i: &mut _| {
                 let start = *i;
                 let mut expr = Expr::parse(i, s.level, false)?;
-                if let Expr::BinOp(v) = &mut expr.inner {
-                    if matches!(v.rhs.inner, Expr::Var("set" | "let")) {
-                        let _level_guard = s.level.nest(i)?;
-                        *i = v.rhs.span.as_suffix_of(start).unwrap();
-                        let start_span = Span::from(*i);
-                        let new_right = Self::parse_cond(i, s)?;
-                        v.rhs.inner = Expr::LetCond(Box::new(WithSpan::new(new_right, start_span)));
-                    }
+                if let Expr::BinOp(v) = &mut expr.inner
+                    && matches!(v.rhs.inner, Expr::Var("set" | "let"))
+                {
+                    let _level_guard = s.level.nest(i)?;
+                    *i = v.rhs.span.as_suffix_of(start).unwrap();
+                    let start_span = Span::from(*i);
+                    let new_right = Self::parse_cond(i, s)?;
+                    v.rhs.inner = Expr::LetCond(Box::new(WithSpan::new(new_right, start_span)));
                 }
                 Ok(expr)
             }),

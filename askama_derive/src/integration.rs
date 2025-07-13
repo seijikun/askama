@@ -386,10 +386,10 @@ where
     A: FnMut(&mut S) -> &mut Option<T>,
 {
     let dest = access(dest);
-    if dest.is_none() {
-        if let Some(parent) = access(parent) {
-            *dest = Some(parent.clone());
-        }
+    if dest.is_none()
+        && let Some(parent) = access(parent)
+    {
+        *dest = Some(parent.clone());
     }
 }
 

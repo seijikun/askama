@@ -331,10 +331,10 @@ pub(crate) fn build_template(
             build_template_enum(buf, ast, enum_args, vars_args, has_default_impl)
         }
     };
-    if let Err(err) = &mut result {
-        if err.span.is_none() {
-            err.span = err_span;
-        }
+    if let Err(err) = &mut result
+        && err.span.is_none()
+    {
+        err.span = err_span;
     }
     result
 }
