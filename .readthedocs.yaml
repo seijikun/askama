@@ -11,9 +11,6 @@ build:
     - asdf install rust 1.88.0
     - asdf global rust 1.88.0
 
-    # proc-macro2 v1.0.95 expects at least nightly-2025-04-16.
-    - cargo update --package proc-macro2 --precise 1.0.94
-
     # Generate "book/theme/index.hbs" as "skeleton" of the generated pages.
     - book/update-theme.py
     # Install mdbook.
@@ -30,9 +27,9 @@ build:
     - cargo install cargo-docs-rs
     - mkdir --parents rustdocs/x86_64-unknown-linux-gnu/doc/
     - ln --relative --symbolic --no-target-directory rustdocs/x86_64-unknown-linux-gnu/doc rustdocs/doc
-    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama
-    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_derive
-    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_escape
-    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_macros
-    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_parser
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 RUSTC_STAGE=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 RUSTC_STAGE=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_derive
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 RUSTC_STAGE=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_escape
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 RUSTC_STAGE=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_macros
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 RUSTC_STAGE=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_parser
     - cp --preserve=all --recursive --target-directory $READTHEDOCS_OUTPUT/html/ rustdocs/x86_64-unknown-linux-gnu/doc/
