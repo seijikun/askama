@@ -165,10 +165,10 @@ impl<'a> Target<'a> {
                     *i,
                 );
             }
-            if let Target::Rest(ref s) = rest.0 {
-                if s.inner.is_some() {
-                    return cut_error!("`@ ..` cannot be used in struct", s.span);
-                }
+            if let Target::Rest(ref s) = rest.0
+                && s.inner.is_some()
+            {
+                return cut_error!("`@ ..` cannot be used in struct", s.span);
             }
             return Ok((rest.1, rest.0));
         }

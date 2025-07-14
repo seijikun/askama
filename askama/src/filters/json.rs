@@ -195,10 +195,10 @@ where
 fn get_escaped(byte: u8) -> Option<[AsciiChar; 2]> {
     const _: () = assert!(CHAR_RANGE < 32);
 
-    if let MIN_CHAR..=MAX_CHAR = byte {
-        if (1u32 << (byte - MIN_CHAR)) & BITS != 0 {
-            return Some(TABLE.0[(byte - MIN_CHAR) as usize]);
-        }
+    if let MIN_CHAR..=MAX_CHAR = byte
+        && (1u32 << (byte - MIN_CHAR)) & BITS != 0
+    {
+        return Some(TABLE.0[(byte - MIN_CHAR) as usize]);
     }
     None
 }

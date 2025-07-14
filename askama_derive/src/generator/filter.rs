@@ -562,17 +562,17 @@ impl<'a> Generator<'a, '_> {
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "format", node)?;
         ensure_no_named_arguments(ctx, "format", args, node)?;
-        if !args.is_empty() {
-            if let Expr::StrLit(ref fmt) = *args[0] {
-                buf.write("askama::helpers::alloc::format!(");
-                self.visit_str_lit(buf, fmt);
-                if args.len() > 1 {
-                    buf.write(',');
-                    self.visit_args(ctx, buf, &args[1..])?;
-                }
-                buf.write(')');
-                return Ok(DisplayWrap::Unwrapped);
+        if !args.is_empty()
+            && let Expr::StrLit(ref fmt) = *args[0]
+        {
+            buf.write("askama::helpers::alloc::format!(");
+            self.visit_str_lit(buf, fmt);
+            if args.len() > 1 {
+                buf.write(',');
+                self.visit_args(ctx, buf, &args[1..])?;
             }
+            buf.write(')');
+            return Ok(DisplayWrap::Unwrapped);
         }
         Err(ctx.generate_error(
             r#"use `format` filter like `"a={} b={}"|format(a, b)`"#,

@@ -1585,17 +1585,17 @@ fn macro_call_ensure_arg_count(
             }
             _ => Some(pos),
         };
-        if let Some(pos) = pos {
-            if mem::take(&mut args[pos]).is_none() {
-                // This argument was already passed, so error.
-                return Err(ctx.generate_error(
-                    format_args!(
-                        "argument `{}` was passed more than once when calling macro `{}`",
-                        def.args[pos].0, def.name,
-                    ),
-                    call.span(),
-                ));
-            }
+        if let Some(pos) = pos
+            && mem::take(&mut args[pos]).is_none()
+        {
+            // This argument was already passed, so error.
+            return Err(ctx.generate_error(
+                format_args!(
+                    "argument `{}` was passed more than once when calling macro `{}`",
+                    def.args[pos].0, def.name,
+                ),
+                call.span(),
+            ));
         }
     }
 

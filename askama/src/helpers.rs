@@ -90,11 +90,11 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(func) = self.func.take() {
-            if let Err(err) = func(f) {
-                self.err.set(Some(err));
-                return Err(fmt::Error);
-            }
+        if let Some(func) = self.func.take()
+            && let Err(err) = func(f)
+        {
+            self.err.set(Some(err));
+            return Err(fmt::Error);
         }
         Ok(())
     }
