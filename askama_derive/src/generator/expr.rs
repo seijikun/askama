@@ -696,14 +696,14 @@ impl<'a> Generator<'a, '_> {
         for (i, part) in path.iter().enumerate() {
             if i > 0 {
                 buf.write("::");
-            } else if let Some(enum_ast) = self.input.enum_ast {
-                if part.name == "Self" {
-                    let this = &enum_ast.ident;
-                    let (_, generics, _) = enum_ast.generics.split_for_impl();
-                    let generics = generics.as_turbofish();
-                    buf.write(quote!(#this #generics));
-                    continue;
-                }
+            } else if let Some(enum_ast) = self.input.enum_ast
+                && part.name == "Self"
+            {
+                let this = &enum_ast.ident;
+                let (_, generics, _) = enum_ast.generics.split_for_impl();
+                let generics = generics.as_turbofish();
+                buf.write(quote!(#this #generics));
+                continue;
             }
             buf.write(part.name);
             if !part.generics.is_empty() {
