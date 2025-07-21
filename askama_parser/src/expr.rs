@@ -1047,26 +1047,23 @@ impl<'a> Suffix<'a> {
             const THREE_CHARS: &[&str] = &["<<=", ">>=", "...", "..="];
 
             // need to check long to short
-            if let Some((head, tail)) = i.split_at_checked(3)
+            *i = if let Some((head, tail)) = i.split_at_checked(3)
                 && THREE_CHARS.contains(&head)
             {
-                *i = tail;
-                return Ok(());
-            }
-            if let Some((head, tail)) = i.split_at_checked(2)
+                tail
+            } else if let Some((head, tail)) = i.split_at_checked(2)
                 && TWO_CHARS.contains(&head)
             {
-                *i = tail;
-                return Ok(());
-            }
-            if let Some((head, tail)) = i.split_at_checked(1)
+                tail
+            } else if let Some((head, tail)) = i.split_at_checked(1)
                 && let [head] = head.as_bytes()
                 && ONE_CHAR.contains(head)
             {
-                *i = tail;
-                return Ok(());
-            }
-            fail(i)
+                tail
+            } else {
+                return fail(i);
+            };
+            Ok(())
         }
 
         fn open<'a>(i: &mut &'a str) -> ParseResult<'a, Group> {

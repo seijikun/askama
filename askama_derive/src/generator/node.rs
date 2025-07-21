@@ -1129,12 +1129,12 @@ impl<'a> Generator<'a, '_> {
 
             // short call-expression for scoped macro invocations, like `{{ scope::macro_name() }}`.
             if let Expr::Path(path_components) = &*v.path
-                && path_components.len() == 2
-                && path_components[0].generics.is_empty()
-                && path_components[1].generics.is_empty()
-                && let Some(import) = ctx.imports.get(&path_components[0].name)
-                && let Some(import_ctx) = self.contexts.get(import)
-                && let Some(macro_def) = import_ctx.macros.get(&path_components[1].name)
+                && let [scope, macro_name] = path_components.as_slice()
+                && scope.generics.is_empty()
+                && macro_name.generics.is_empty()
+                && let Some(scope) = ctx.imports.get(&scope.name)
+                && let Some(macro_ctx) = self.contexts.get(scope)
+                && let Some(macro_def) = macro_ctx.macros.get(&macro_name.name)
             {
                 return helpers::MacroInvocation {
                     callsite_ctx: ctx,
@@ -1143,7 +1143,7 @@ impl<'a> Generator<'a, '_> {
                     callsite_ws: ws,
                     call_args: &v.args,
                     macro_def,
-                    macro_ctx: import_ctx,
+                    macro_ctx,
                 }
                 .write(buf, self);
             }
