@@ -1,0 +1,31 @@
+error: failed to parse template source
+ --> <source attribute>:1:15
+       "= 5) }}"
+  --> tests/ui/expr_fn_calls.rs:10:21
+   |
+10 | #[template(source = "{{ test_fn(arg = 5) }}", ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: failed to parse template source
+ --> <source attribute>:1:23
+       "= \"test\") }}"
+  --> tests/ui/expr_fn_calls.rs:21:21
+   |
+21 | #[template(source = r#"{{ self::static_fn(arg = "test") }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: failed to parse template source
+ --> <source attribute>:1:39
+       "= \"test\") }}"
+  --> tests/ui/expr_fn_calls.rs:26:21
+   |
+26 | #[template(source = r#"{{ self::static_fn2("test").unwrap(arg = "test") }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: failed to parse template source
+ --> <source attribute>:1:34
+       "= \"test\") %}"
+  --> tests/ui/expr_fn_calls.rs:31:21
+   |
+31 | #[template(source = r#"{% let test = self::static_fn(arg = "test") %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
