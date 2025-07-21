@@ -581,6 +581,31 @@ fn test_expr_macro_call_importchain_nested() {
 }
 
 #[test]
+fn test_expr_macro_call_named_arguments() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro testmacro(arg0 = "-", arg1 = 5) -%}
+    {{ arg0 }} | {{ arg1 }};
+{%- endmacro -%}
+{{- testmacro() }}
+{{- testmacro("a") }}
+{{- testmacro("b", 1337) }}
+{{- testmacro("c", arg1 = 1338) }}
+{{- testmacro(arg0 = "d", arg1 = 1339) -}}
+"#,
+        ext = "html"
+    )]
+    struct ExprMacroCall;
+
+    // primarily checking for compilation
+    assert_eq!(
+        ExprMacroCall.render().unwrap(),
+        "- | 5;a | 5;b | 1337;c | 1338;d | 1339;"
+    );
+}
+
+#[test]
 fn test_macro_caller_is_defined_check() {
     #[derive(Template)]
     #[template(
