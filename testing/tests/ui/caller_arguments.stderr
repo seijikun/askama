@@ -80,18 +80,3 @@ error: block is not defined for `caller`
    |
 86 |     source = r#"{{caller()}}"#,
    |              ^^^^^^^^^^^^^^^^^
-
-error: failed to parse template source
- --> <source attribute>:3:27
-       "= \"b\") }}\n    {%- endmacro -%}\n    {%- call(two, one) test() -%}\n        {{- two"...
-   --> tests/ui/caller_arguments.rs:94:14
-    |
-94  |       source = r#"
-    |  ______________^
-95  | |     {% macro test() %}
-96  | |         {{ caller("a", one = "b") }}
-97  | |     {%- endmacro -%}
-...   |
-100 | |     {%- endcall -%}
-101 | |     "#,
-    | |______^

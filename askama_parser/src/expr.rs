@@ -251,7 +251,6 @@ impl<'a> Expr<'a> {
     pub(super) fn arguments(
         i: &mut &'a str,
         level: Level<'_>,
-        is_template_macro: bool,
     ) -> ParseResult<'a, Vec<WithSpan<'a, Self>>> {
         let _level_guard = level.nest(i)?;
         let mut named_arguments = HashSet::new();
@@ -269,15 +268,7 @@ impl<'a> Expr<'a> {
                         let has_named_arguments = !named_arguments.is_empty();
 
                         let expr = alt((
-                            move |i: &mut _| {
-                                Self::named_argument(
-                                    i,
-                                    level,
-                                    named_arguments,
-                                    start,
-                                    is_template_macro,
-                                )
-                            },
+                            move |i: &mut _| Self::named_argument(i, level, named_arguments, start),
                             move |i: &mut _| Self::parse(i, level, false),
                         ))
                         .parse_next(i)?;
@@ -300,14 +291,7 @@ impl<'a> Expr<'a> {
         level: Level<'_>,
         named_arguments: &mut HashSet<&'a str>,
         start: &'a str,
-        is_template_macro: bool,
     ) -> ParseResult<'a, WithSpan<'a, Self>> {
-        if !is_template_macro {
-            // If this is not a template macro, we don't want to parse named arguments so
-            // we instead return an error which will allow to continue the parsing.
-            return fail.parse_next(i);
-        }
-
         let (argument, _, value) = (identifier, ws('='), move |i: &mut _| {
             Self::parse(i, level, false)
         })
@@ -703,7 +687,7 @@ impl<'a> Filter<'a> {
     pub(crate) fn parse(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Self> {
         let (name, arguments) = (
             ws(|i: &mut _| path_or_identifier(i, level)),
-            opt(|i: &mut _| Expr::arguments(i, level, true)),
+            opt(|i: &mut _| Expr::arguments(i, level)),
         )
             .parse_next(i)?;
         Ok(Self {
@@ -1126,7 +1110,7 @@ impl<'a> Suffix<'a> {
 
     fn call(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Self> {
         (opt(|i: &mut _| call_generics(i, level)), |i: &mut _| {
-            Expr::arguments(i, level, false)
+            Expr::arguments(i, level)
         })
             .map(|(_generics, args)| Self::Call { args })
             .parse_next(i)

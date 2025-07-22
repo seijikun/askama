@@ -485,6 +485,14 @@ impl<'a> Generator<'a, '_> {
         left: &WithSpan<'a, Expr<'a>>,
         args: &[WithSpan<'a, Expr<'a>>],
     ) -> Result<DisplayWrap, CompileError> {
+        // ensure that no named args are used in normal rust call expressions
+        if let Some(arg) = args
+            .iter()
+            .find(|&arg| matches!(**arg, Expr::NamedArgument(_, _)))
+        {
+            return Err(ctx.generate_error("Unsupported use of named arguments", arg.span()));
+        }
+
         match &**left {
             Expr::AssociatedItem(sub_left, AssociatedItem { name, generics })
                 if ***sub_left == Expr::Var("loop") =>

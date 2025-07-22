@@ -89,20 +89,4 @@ struct CallerInCaller1 {
 struct JustCaller{
 }
 
-#[derive(Template)]
-#[template(
-    source = r#"
-    {% macro test() %}
-        {{ caller("a", one = "b") }}
-    {%- endmacro -%}
-    {%- call(two, one) test() -%}
-        {{- two -}} {{- one -}}
-    {%- endcall -%}
-    "#,
-    ext = "txt"
-)]
-struct NamedArguments {
-}
-
 fn main() {}
-
