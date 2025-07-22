@@ -885,7 +885,7 @@ impl<'a> Call<'a> {
                 (
                     opt((ws(identifier), ws("::"))),
                     ws(identifier),
-                    opt(ws(|nested: &mut _| Expr::arguments(nested, s.level, true))),
+                    opt(ws(|nested: &mut _| Expr::arguments(nested, s.level))),
                     opt(Whitespace::parse),
                     |i: &mut _| s.tag_block_end(i),
                 ),
