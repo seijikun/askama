@@ -760,11 +760,11 @@ impl<'a> Generator<'a, '_> {
         value: &WithSpan<'a, Expr<'a>>,
         fallback: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
-        if let Expr::Var(var_name) = **value {
-            if !self.is_var_assigned(var_name) {
-                self.visit_expr(ctx, buf, fallback)?;
-                return Ok(DisplayWrap::Unwrapped);
-            }
+        if let Expr::Var(var_name) = **value
+            && !self.is_var_assigned(var_name)
+        {
+            self.visit_expr(ctx, buf, fallback)?;
+            return Ok(DisplayWrap::Unwrapped);
         }
 
         buf.write("askama::filters::assigned_or(&(");
