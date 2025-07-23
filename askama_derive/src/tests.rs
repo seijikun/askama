@@ -678,7 +678,7 @@ fn check_bool_conditions() {
     // condition.
     compare(
         "{% if y == 3 || (true || x == 12) %}{{x}}{% endif %}",
-        r"if askama::helpers::as_bool(&(self.y == 3)) || (true) {
+        r"if askama::helpers::as_bool(&(self.y == 3)) || true {
     match (
         &((&&askama::filters::AutoEscaper::new(
             &(self.x),

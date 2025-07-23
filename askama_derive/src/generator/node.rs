@@ -184,7 +184,7 @@ impl<'a> Generator<'a, '_> {
         &self,
         expr: WithSpan<'a, Expr<'a>>,
         only_contains_is_defined: &mut bool,
-    ) -> (EvaluatedResult, WithSpan<'a, Expr<'a>>) {
+    ) -> EvaluatedResult<'a> {
         let (expr, span) = expr.deconstruct();
 
         match expr {
@@ -209,135 +209,98 @@ impl<'a> Generator<'a, '_> {
             | Expr::LetCond(_)
             | Expr::ArgumentPlaceholder => {
                 *only_contains_is_defined = false;
-                (
-                    EvaluatedResult::Unknown,
-                    WithSpan::new_with_full(expr, span),
-                )
+                EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span))
             }
-            Expr::BoolLit(true) => (
-                EvaluatedResult::AlwaysTrue,
-                WithSpan::new_with_full(expr, span),
-            ),
-            Expr::BoolLit(false) => (
-                EvaluatedResult::AlwaysFalse,
-                WithSpan::new_with_full(expr, span),
-            ),
+            Expr::BoolLit(true) => EvaluatedResult::AlwaysTrue,
+            Expr::BoolLit(false) => EvaluatedResult::AlwaysFalse,
             Expr::Unary("!", inner) => {
-                let (result, expr) = self.evaluate_condition(*inner, only_contains_is_defined);
-                match result {
-                    EvaluatedResult::AlwaysTrue => (
-                        EvaluatedResult::AlwaysFalse,
-                        WithSpan::new_without_span(Expr::BoolLit(false)),
-                    ),
-                    EvaluatedResult::AlwaysFalse => (
-                        EvaluatedResult::AlwaysTrue,
-                        WithSpan::new_without_span(Expr::BoolLit(true)),
-                    ),
-                    EvaluatedResult::Unknown => (
-                        EvaluatedResult::Unknown,
+                match self.evaluate_condition(*inner, only_contains_is_defined) {
+                    EvaluatedResult::AlwaysTrue => EvaluatedResult::AlwaysFalse,
+                    EvaluatedResult::AlwaysFalse => EvaluatedResult::AlwaysTrue,
+                    EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(
                         WithSpan::new_with_full(Expr::Unary("!", Box::new(expr)), span),
                     ),
                 }
             }
-            Expr::Unary(_, _) => (
-                EvaluatedResult::Unknown,
-                WithSpan::new_with_full(expr, span),
-            ),
+            Expr::Unary(_, _) => EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span)),
             Expr::BinOp(v) if v.op == "&&" => {
-                let (result_left, expr_left) =
-                    self.evaluate_condition(v.lhs, only_contains_is_defined);
-                if result_left == EvaluatedResult::AlwaysFalse {
-                    // The right side of the `&&` won't be evaluated, no need to go any further.
-                    return (
-                        result_left,
-                        WithSpan::new_without_span(Expr::BoolLit(false)),
-                    );
-                }
-                let (result_right, expr_right) =
-                    self.evaluate_condition(v.rhs, only_contains_is_defined);
-                match (result_left, result_right) {
-                    (EvaluatedResult::AlwaysTrue, EvaluatedResult::AlwaysTrue) => (
-                        EvaluatedResult::AlwaysTrue,
-                        WithSpan::new_without_span(Expr::BoolLit(true)),
-                    ),
-                    (_, EvaluatedResult::AlwaysFalse) => (
-                        EvaluatedResult::AlwaysFalse,
-                        bin_op(span, "&&", expr_left, expr_right),
-                    ),
-                    (EvaluatedResult::AlwaysTrue, _) => (result_right, expr_right),
-                    (_, EvaluatedResult::AlwaysTrue) => (result_left, expr_left),
-                    _ => (
-                        EvaluatedResult::Unknown,
-                        bin_op(span, "&&", expr_left, expr_right),
-                    ),
+                let lhs = match self.evaluate_condition(v.lhs, only_contains_is_defined) {
+                    EvaluatedResult::AlwaysTrue => {
+                        // The left side of the `&&` can be omitted.
+                        return self.evaluate_condition(v.rhs, only_contains_is_defined);
+                    }
+                    EvaluatedResult::AlwaysFalse => {
+                        // The right side of the `&&` won't be evaluated, no need to go any further.
+                        return EvaluatedResult::AlwaysFalse;
+                    }
+                    EvaluatedResult::Unknown(lhs) => lhs,
+                };
+                match self.evaluate_condition(v.rhs, only_contains_is_defined) {
+                    EvaluatedResult::AlwaysTrue => {
+                        // The right side of the `&&` can be omitted.
+                        EvaluatedResult::Unknown(lhs)
+                    }
+                    EvaluatedResult::AlwaysFalse => {
+                        // Keep the side effect.
+                        let rhs = WithSpan::new_without_span(Expr::BoolLit(false));
+                        EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
+                    }
+                    EvaluatedResult::Unknown(rhs) => {
+                        EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
+                    }
                 }
             }
             Expr::BinOp(v) if v.op == "||" => {
-                let (result_left, expr_left) =
-                    self.evaluate_condition(v.lhs, only_contains_is_defined);
-                if result_left == EvaluatedResult::AlwaysTrue {
-                    // The right side of the `||` won't be evaluated, no need to go any further.
-                    return (result_left, WithSpan::new_without_span(Expr::BoolLit(true)));
-                }
-                let (result_right, expr_right) =
-                    self.evaluate_condition(v.rhs, only_contains_is_defined);
-                match (result_left, result_right) {
-                    (EvaluatedResult::AlwaysFalse, EvaluatedResult::AlwaysFalse) => (
-                        EvaluatedResult::AlwaysFalse,
-                        WithSpan::new_without_span(Expr::BoolLit(false)),
-                    ),
-                    (_, EvaluatedResult::AlwaysTrue) => (
-                        EvaluatedResult::AlwaysTrue,
-                        bin_op(span, "||", expr_left, expr_right),
-                    ),
-                    (EvaluatedResult::AlwaysFalse, _) => (result_right, expr_right),
-                    (_, EvaluatedResult::AlwaysFalse) => (result_left, expr_left),
-                    _ => (
-                        EvaluatedResult::Unknown,
-                        bin_op(span, "||", expr_left, expr_right),
-                    ),
+                let lhs = match self.evaluate_condition(v.lhs, only_contains_is_defined) {
+                    EvaluatedResult::AlwaysTrue => {
+                        // The right side of the `||` won't be evaluated, no need to go any further.
+                        return EvaluatedResult::AlwaysTrue;
+                    }
+                    EvaluatedResult::AlwaysFalse => {
+                        // The left side of the `||` can be omitted.
+                        return self.evaluate_condition(v.rhs, only_contains_is_defined);
+                    }
+                    EvaluatedResult::Unknown(lhs) => lhs,
+                };
+                match self.evaluate_condition(v.rhs, only_contains_is_defined) {
+                    EvaluatedResult::AlwaysTrue => {
+                        // Keep the side effect.
+                        let rhs = WithSpan::new_without_span(Expr::BoolLit(true));
+                        EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
+                    }
+                    EvaluatedResult::AlwaysFalse => {
+                        // The right side of the `||` can be omitted.
+                        EvaluatedResult::Unknown(lhs)
+                    }
+                    EvaluatedResult::Unknown(rhs) => {
+                        EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
+                    }
                 }
             }
             Expr::BinOp(_) => {
                 *only_contains_is_defined = false;
-                (
-                    EvaluatedResult::Unknown,
-                    WithSpan::new_with_full(expr, span),
-                )
+                EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span))
             }
-            Expr::Group(inner) => {
-                let (result, expr) = self.evaluate_condition(*inner, only_contains_is_defined);
-                (
-                    result,
+            Expr::Group(inner) => match self.evaluate_condition(*inner, only_contains_is_defined) {
+                EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(
                     WithSpan::new_with_full(Expr::Group(Box::new(expr)), span),
-                )
-            }
+                ),
+                known => known,
+            },
             Expr::IsDefined(left) => {
                 // Variable is defined so we want to keep the condition.
                 if self.is_var_defined(left) {
-                    (
-                        EvaluatedResult::AlwaysTrue,
-                        WithSpan::new_without_span(Expr::BoolLit(true)),
-                    )
+                    EvaluatedResult::AlwaysTrue
                 } else {
-                    (
-                        EvaluatedResult::AlwaysFalse,
-                        WithSpan::new_without_span(Expr::BoolLit(false)),
-                    )
+                    EvaluatedResult::AlwaysFalse
                 }
             }
             Expr::IsNotDefined(left) => {
                 // Variable is defined so we don't want to keep the condition.
                 if self.is_var_defined(left) {
-                    (
-                        EvaluatedResult::AlwaysFalse,
-                        WithSpan::new_without_span(Expr::BoolLit(false)),
-                    )
+                    EvaluatedResult::AlwaysFalse
                 } else {
-                    (
-                        EvaluatedResult::AlwaysTrue,
-                        WithSpan::new_without_span(Expr::BoolLit(true)),
-                    )
+                    EvaluatedResult::AlwaysTrue
                 }
             }
         }
@@ -1369,11 +1332,11 @@ struct Conds<'a> {
     nb_conds: usize,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum EvaluatedResult {
+#[derive(Debug, Clone, PartialEq)]
+enum EvaluatedResult<'a> {
     AlwaysTrue,
     AlwaysFalse,
-    Unknown,
+    Unknown(WithSpan<'a, Expr<'a>>),
 }
 
 impl<'a> Conds<'a> {
@@ -1397,12 +1360,11 @@ impl<'a> Conds<'a> {
             {
                 let mut only_contains_is_defined = true;
 
-                let (evaluated_result, cond_expr) = if *contains_bool_lit_or_is_defined {
-                    let (evaluated_result, expr) =
-                        generator.evaluate_condition(expr.clone(), &mut only_contains_is_defined);
-                    (evaluated_result, Some(expr))
+                let span = expr.span();
+                let evaluated_result = if *contains_bool_lit_or_is_defined {
+                    Some(generator.evaluate_condition(expr.clone(), &mut only_contains_is_defined))
                 } else {
-                    (EvaluatedResult::Unknown, None)
+                    None
                 };
 
                 match evaluated_result {
@@ -1411,7 +1373,7 @@ impl<'a> Conds<'a> {
                     //
                     // However, if the condition only contains "is (not) defined" checks, then we
                     // can completely skip it.
-                    EvaluatedResult::AlwaysFalse => {
+                    Some(EvaluatedResult::AlwaysFalse) => {
                         if only_contains_is_defined {
                             if conds.is_empty() && ws_before.is_none() {
                                 // If this is the first `if` and it's skipped, we definitely don't
@@ -1423,7 +1385,7 @@ impl<'a> Conds<'a> {
                         nb_conds += 1;
                         conds.push(CondInfo {
                             cond,
-                            cond_expr,
+                            cond_expr: Some(WithSpan::new_with_full(Expr::BoolLit(false), span)),
                             generate_condition: true,
                             generate_content: false,
                         });
@@ -1432,25 +1394,34 @@ impl<'a> Conds<'a> {
                     // condition, meaning that any following should not be generated. Another
                     // thing to take into account: if there are no if branches before this one,
                     // no need to generate an `else`.
-                    EvaluatedResult::AlwaysTrue => {
+                    Some(EvaluatedResult::AlwaysTrue) => {
                         let generate_condition = !only_contains_is_defined;
                         if generate_condition {
                             nb_conds += 1;
                         }
                         conds.push(CondInfo {
                             cond,
-                            cond_expr,
+                            cond_expr: Some(WithSpan::new_with_full(Expr::BoolLit(true), span)),
                             generate_condition,
                             generate_content: true,
                         });
                         // Since it's always true, we can stop here.
                         stop_loop = true;
                     }
-                    EvaluatedResult::Unknown => {
+                    Some(EvaluatedResult::Unknown(cond_expr)) => {
                         nb_conds += 1;
                         conds.push(CondInfo {
                             cond,
-                            cond_expr,
+                            cond_expr: Some(cond_expr),
+                            generate_condition: true,
+                            generate_content: true,
+                        });
+                    }
+                    None => {
+                        nb_conds += 1;
+                        conds.push(CondInfo {
+                            cond,
+                            cond_expr: None,
                             generate_condition: true,
                             generate_content: true,
                         });
