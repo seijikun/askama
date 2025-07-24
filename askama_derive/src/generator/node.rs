@@ -943,8 +943,12 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         ws: Ws,
-        expr: &'a WithSpan<'a, Expr<'a>>,
+        mut expr: &'a WithSpan<'a, Expr<'a>>,
     ) -> Result<usize, CompileError> {
+        while let Expr::Group(inner) = &**expr {
+            expr = inner;
+        }
+
         if let Expr::Call(call) = &**expr
             && let ControlFlow::Break(size_hint) =
                 self.write_expr_call(ctx, buf, ws, expr.span(), call)?
@@ -953,17 +957,24 @@ impl<'a> Generator<'a, '_> {
         }
 
         self.handle_ws(ws);
-        let items = if let Expr::Concat(exprs) = &**expr {
-            exprs
-        } else {
-            std::slice::from_ref(expr)
-        };
-
-        for s in items {
-            self.buf_writable
-                .push(compile_time_escape(s, self.input.escaper).unwrap_or(Writable::Expr(s)));
-        }
+        self.write_expr_item(expr);
         Ok(0)
+    }
+
+    fn write_expr_item(&mut self, expr: &'a WithSpan<'a, Expr<'a>>) {
+        match &**expr {
+            Expr::Group(expr) => self.write_expr_item(expr),
+            Expr::Concat(items) => {
+                for expr in items {
+                    self.write_expr_item(expr);
+                }
+            }
+            _ => {
+                self.buf_writable.push(
+                    compile_time_escape(expr, self.input.escaper).unwrap_or(Writable::Expr(expr)),
+                );
+            }
+        }
     }
 
     fn write_expr_call(
