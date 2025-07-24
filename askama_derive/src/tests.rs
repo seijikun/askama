@@ -1410,3 +1410,34 @@ fn test_bare_cr_doc_comment() -> Result<(), syn::Error> {
 
     Ok(())
 }
+
+#[test]
+fn check_expr_ungrouping() {
+    // In this test we ensure that superfluous parentheses around expressions are stripped before
+    // handling the expression.
+
+    compare(
+        r#"{{ ("hello") }}"#,
+        r#"__askama_writer.write_str("hello")?;"#,
+        &[],
+        5,
+    );
+    compare(
+        r#"{{ ("hello") ~ " " ~ ("world") }}"#,
+        r#"__askama_writer.write_str("hello world")?;"#,
+        &[],
+        11,
+    );
+    compare(
+        r#"{{ ("hello") ~ (" " ~ ("world")) }}"#,
+        r#"__askama_writer.write_str("hello world")?;"#,
+        &[],
+        11,
+    );
+    compare(
+        r#"{{ ((((((((((("hello") ~ " ")))) ~ ((("world"))))))))) }}"#,
+        r#"__askama_writer.write_str("hello world")?;"#,
+        &[],
+        11,
+    );
+}
