@@ -76,16 +76,33 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_no_named_arguments(ctx, path.last().unwrap().name, args, node)?;
-        self.visit_path(buf, path);
-        buf.write('(');
-        self.visit_arg(ctx, buf, &args[0])?;
-        buf.write(",__askama_values");
-        if args.len() > 1 {
-            buf.write(',');
-            self.visit_args(ctx, buf, &args[1..])?;
+        buf.write("{");
+        let prefix_path = &path[..path.len() - 1];
+        self.visit_path(buf, prefix_path);
+        let filter = path
+            .last()
+            .ok_or_else(|| ctx.generate_error("Filter invocations don't support generics", node))?;
+        if !prefix_path.is_empty() {
+            buf.write("::");
         }
-        buf.write(")?");
+        buf.write(format!("{}::default()", filter.name));
+
+        for (arg_idx, arg) in args[1..].iter().enumerate() {
+            let expr: &Expr<'a> = arg;
+            if let Expr::NamedArgument(name, arg) = expr {
+                buf.write(format!(".with_{name}("));
+                self.visit_arg(ctx, buf, arg)?;
+                buf.write(")");
+            } else {
+                buf.write(format!(".with_{arg_idx}("));
+                self.visit_arg(ctx, buf, arg)?;
+                buf.write(")");
+            }
+        }
+
+        buf.write(".execute(");
+        self.visit_arg(ctx, buf, &args[0])?;
+        buf.write(",__askama_values)?}");
         Ok(DisplayWrap::Unwrapped)
     }
 
