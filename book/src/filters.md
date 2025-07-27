@@ -565,13 +565,13 @@ Output will be:
 
 Marks a string (or other Display type) as safe. By default all strings are escaped according to the format.
 
-```
+```jinja
 {{ "<p>I'm Safe</p>" | safe }}
 ```
 
 Output:
 
-```
+```html
 <p>I'm Safe</p>
 ```
 
@@ -769,7 +769,7 @@ askama = { version = "0.12", features = ["serde_json"] }
 enabled by <code>"serde_json"</code>
 </blockquote>
 
-```jinja2
+```jinja
 {{ value_to_serialize | json }}
 {{ value_to_serialize | json(indent) }}
 ```
@@ -804,7 +804,7 @@ By default, a compact representation of the data is generated, i.e. no whitespac
 between individual values. To generate a readable representation, you can either pass an integer
 how many spaces to use as indentation, or you can pass a string that gets used as prefix:
 
-```jinja2
+```jinja
 Prefix with four spaces:
 <textarea>{{data | tojson(4)}}</textarea>
 
