@@ -710,7 +710,7 @@ including arithmetic, comparison and logic operators.
 The parser applies the same [operator precedence] as the Rust compiler.
 Expressions can be grouped using parentheses.
 
-```
+```jinja
 {{ 3 * 4 / 2 }}
 {{ 26 / 2 % 7 }}
 {{ 3 % 2 * 6 }}
@@ -885,7 +885,7 @@ You can use whitespace characters around `=`:
 
 You can mix named and non-named arguments when calling a macro:
 
-```
+```jinja
 {% call heading("title", bold="something") %}{% endcall %}
 ```
 

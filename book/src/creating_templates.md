@@ -97,7 +97,7 @@ recognized:
   `block = "..."` attribute. You can access the sub-templates with the method
   <code>my_template.as_<em>block_name</em>()</code>, where *`block_name`* is the
   name of the block:
-  ```rust,ignore
+  ```rust
   #[derive(Template)]
   #[template(
       ext = "txt",
@@ -155,7 +155,7 @@ recognized:
   [book-macro]: https://doc.rust-lang.org/book/ch19-06-macros.html
   [book-tree]: https://doc.rust-lang.org/book/ch07-03-paths-for-referring-to-an-item-in-the-module-tree.html
 
-  ```rust,ignore
+  ```rust
   #[doc(hidden)]
   use askama as __askama;
 
@@ -192,7 +192,7 @@ enum Area {
 }
 ```
 
-```jinja2
+```jinja
 {%- match self -%}
     {%- when Self::Square(side) -%}
         {{side}}^2
@@ -240,7 +240,7 @@ enum AreaWithBlocks {
 }
 ```
 
-```jinja2
+```jinja
 {%- block square -%}
     {{self.0}}^2
 {%- endblock -%}
