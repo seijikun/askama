@@ -5,8 +5,9 @@ mod node;
 
 use std::borrow::Cow;
 use std::collections::hash_map::HashMap;
+use std::env::current_dir;
 use std::ops::Deref;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
 
@@ -17,6 +18,7 @@ use parser::{
 use rustc_hash::FxBuildHasher;
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
+use crate::generator::helpers::{clean_path, diff_paths};
 use crate::heritage::{Context, Heritage};
 use crate::html::write_escaped_str;
 use crate::input::{Source, TemplateInput};
@@ -87,6 +89,14 @@ struct Generator<'a, 'h> {
     is_in_filter_block: usize,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_callers: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
+    /// The directory path of the calling file.
+    caller_dir: CallerDir,
+}
+
+enum CallerDir {
+    Valid(PathBuf),
+    Invalid,
+    Unresolved,
 }
 
 impl<'a, 'h> Generator<'a, 'h> {
@@ -112,6 +122,42 @@ impl<'a, 'h> Generator<'a, 'h> {
             },
             is_in_filter_block,
             seen_callers: Vec::new(),
+            caller_dir: CallerDir::Unresolved,
+        }
+    }
+
+    fn rel_path<'p>(&mut self, path: &'p Path) -> Cow<'p, Path> {
+        self.caller_dir()
+            .and_then(|caller_dir| diff_paths(path, caller_dir))
+            .map_or(Cow::Borrowed(path), Cow::Owned)
+    }
+
+    fn caller_dir(&mut self) -> Option<&Path> {
+        match self.caller_dir {
+            CallerDir::Valid(ref caller_dir) => return Some(caller_dir.as_path()),
+            CallerDir::Invalid => return None,
+            CallerDir::Unresolved => {}
+        }
+
+        if proc_macro::is_available()
+            && let Some(mut local_file) = proc_macro::Span::call_site().local_file()
+        {
+            local_file.pop();
+            if !local_file.is_absolute() {
+                local_file = current_dir()
+                    .as_deref()
+                    .unwrap_or(Path::new("."))
+                    .join(local_file);
+            }
+
+            self.caller_dir = CallerDir::Valid(clean_path(&local_file));
+            match &self.caller_dir {
+                CallerDir::Valid(caller_dir) => Some(caller_dir.as_path()),
+                _ => None, // unreachable
+            }
+        } else {
+            self.caller_dir = CallerDir::Invalid;
+            None
         }
     }
 
@@ -148,8 +194,8 @@ impl<'a, 'h> Generator<'a, 'h> {
         if let Some(full_config_path) = &self.input.config.full_config_path {
             buf.write(format_args!(
                 "const _: &[askama::helpers::core::primitive::u8] =\
-                askama::helpers::core::include_bytes!({:?});",
-                full_config_path.display()
+                    askama::helpers::core::include_bytes!({:?});",
+                self.rel_path(full_config_path).display()
             ));
         }
 
@@ -170,8 +216,8 @@ impl<'a, 'h> Generator<'a, 'h> {
             if path_is_valid {
                 buf.write(format_args!(
                     "const _: &[askama::helpers::core::primitive::u8] =\
-                        askama::helpers::core::include_bytes!({:#?});",
-                    path.canonicalize().as_deref().unwrap_or(path),
+                        askama::helpers::core::include_bytes!({:?});",
+                    self.rel_path(path).display()
                 ));
             }
         }

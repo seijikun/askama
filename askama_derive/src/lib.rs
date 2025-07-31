@@ -2,6 +2,8 @@
 #![deny(elided_lifetimes_in_paths)]
 #![deny(unreachable_pub)]
 
+extern crate proc_macro;
+
 mod config;
 mod generator;
 mod heritage;
@@ -14,8 +16,6 @@ mod tests;
 #[doc(hidden)]
 #[cfg(feature = "proc-macro")]
 pub mod __macro_support {
-    extern crate proc_macro;
-
     pub use proc_macro::TokenStream as TokenStream1;
     pub use proc_macro2::TokenStream as TokenStream2;
     pub use quote::quote;
