@@ -791,9 +791,14 @@ disable escaping when injecting it into an outer template, e.g. `{{ s1|safe }}`.
 Otherwise it will render the HTML content literally, because
 askama [escapes HTML variables](#html-escaping) by default.
 
+Instead of disabling escaping for this template type at every single invocation within your template, you can alternatively mark the template itself as safe:
+
+```rust
+impl askama::filters::HtmlSafe for SectionOne<'_> {}
+```
+
 See the example
-[render in place](https://github.com/askama-rs/askama/blob/master/testing/tests/render_in_place.rs)
-using a vector of templates in a for block.
+[render in place](https://github.com/askama-rs/askama/blob/master/testing/tests/render_in_place.rs), which demonstrates using a vector of templates in a for block.
 
 ## Comments
 
@@ -837,59 +842,70 @@ struct Item<'a> {
 
 ## Macros
 
-You can define macros within your template by using `{% macro name(args) %}`, ending with `{% endmacro %}`.
-
-You can then call it with `{% call name(args) %}`, ending with `{% endcall %}`:
+Macros are a jinja mechanism to declare reusable snippets. A macro can declare a set of required and optional arguments. Additionally, macros inherit the variable scope from their callsite. Defining and invoking a simple macro looks like this:
 
 ```jinja
-{% macro heading(arg) %}
-
-<h1>{{arg}}</h1>
-
+{% macro heading(required_arg, optional_arg = "default subtitle") %}
+    <h1>{{required_arg}}</h1>
+    <h2>{{optional_arg}}</h2>
+    {{ variable_in_scope }}
 {% endmacro %}
 
-{% call heading(s) %}{% endcall %}
+{# Variable scope that will be passed into macro invocations #}
+{% set variable_in_scope = 5 %}
+
+{# Invoke the macro by supplying all arguments #}
+{{ heading("test", "good subtitle") }}
+
+{# Invoke the macro by leaving out the optional argument `optional_arg` #}
+{# This will use the default value `default subtitle` #}
+{{ heading("test") }}
 ```
 
-You can place macros in a separate file and use them in your templates by using `{% import %}`:
+Optionally, `{% endmacro %}` statements can also contain the macro's name, which would look something like this for the above example:
 
 ```jinja
-{%- import "macro.html" as scope -%}
-
-{% call scope::heading(s) %}{% endcall %}
+{% macro heading(required_arg, optional_arg = "default subtitle") %}
+    {# ... #}
+{% endmacro heading %}
 ```
 
-You can optionally specify the name of the macro in `endmacro`:
+### Imports & Scopes
+
+To have a small library of reusable snippets, it's best to declare the macros in some external file. This file can then be `import`ed with a named scope into your template. Moving the macro declaration above into the file `macro.html`, importing and then invoking it would look like this:
 
 ```jinja
-{% macro heading(arg) %}<p>{{arg}}</p>{% endmacro heading %}
+{% import "macro.html" as scope %}
+
+{{ scope::heading("test") }}
 ```
 
-You can also specify arguments by their name (as defined in the macro):
+### Named Arguments
+
+Additionally to specifying arguments positionally, you can also pass arguments by name. This allows passing the arguments in any order:
 
 ```jinja
-{% macro heading(arg, bold) %}
-
-<h1>{{arg}} <b>{{bold}}</b></h1>
-
+{% macro heading(title, font_weight = "normal", font_size = 13)}
+    <h1 style="font-weight: {{ font_weight }}; font-size: {{ font_size }};">
+        {{ title }}
+    </h1>
 {% endmacro %}
 
-{% call heading(bold="something", arg="title") %}{% endcall%}
+{# using positional arguments #}
+{{ heading("Super Heading", "bold", 13) }}
+{# using named arguments #}
+{{ heading(title = "Super Heading", font_weight = "bold") }}
+{{ heading(title = "Super Heading", font_weight = "bold", font_size = 23) }}
+{{ heading(title = "Super Heading", font_size = 42, font_weight = "bold") }}
 ```
 
-You can use whitespace characters around `=`:
+Both ways of invocing a macro can even be mixed, though optional arguments always have to come **last** (after all arguments specified positionally):
 
 ```jinja
-{% call heading(bold = "something", arg = "title") %}{% endcall %}
+{{ heading("Super Heading", font_weight = "bold", font_size = 26) }}
+{{ heading("Super Heading", font_size = 26, font_weight = "bold") }}
+{{ heading("Super Heading", "bold", font_size = 26) }}
 ```
-
-You can mix named and non-named arguments when calling a macro:
-
-```jinja
-{% call heading("title", bold="something") %}{% endcall %}
-```
-
-However please note that named arguments must always come **last**.
 
 Another thing to note, if a named argument is referring to an argument that would
 be used for a non-named argument, it will error:
@@ -898,46 +914,50 @@ be used for a non-named argument, it will error:
 {% macro heading(arg1, arg2, arg3, arg4) %}
 {% endmacro %}
 
-{% call heading("something", "b", arg4="ah", arg2="title") %}{% endcall %}
+{{ heading("something", "b", arg4 = "ah", arg2 = "title") }}
 ```
 
 In here it's invalid because `arg2` is the second argument and would be used by
 `"b"`. So either you replace `"b"` with `arg3="b"` or you pass `"title"` before:
 
 ```jinja
-{% call heading("something", arg3="b", arg4="ah", arg2="title") %}{% endcall %}
+{{ heading("something", arg3 = "b", arg4 = "ah", arg2 = "title") }}
 {# Equivalent of: #}
-{% call heading("something", "title", "b", arg4="ah") %}{% endcall %}
+{{ heading("something", "title", "b", arg4 = "ah") }}
 ```
 
-### Default value
+### Macro Call Blocks
 
-You can specify default values for your macro arguments:
+There is a second way to invoke macros, using the `call` block syntax. This syntax allows your invocation to have a "body". Within the macro, a special variable called `caller` will be defined, that behaves like a function and can insert the given body at any place:
 
 ```jinja
-{% macro heading(arg1, arg2 = "something") %}
+{% macro centered() %}
+    <center>
+        {# insert the invocation's body here: #}
+        {{ caller() }}
+    <center>
 {% endmacro %}
+
+{# This macro has to use the call block syntax, because it's expecting a body: #}
+{% call centered() %}
+    This text will be centered
+{% endcall %}
 ```
 
-Then if you don't pass a value for this argument, its default value will be used:
+Invoking this macro using the call expression syntax shown above (`{{ centered() }}`) will fail, because the macro is expecting the variable `caller()` to exist - but only `call`-block invocations define it.
 
-```jinja
-{# We only specify `arg1`, so `arg2` will be "something" #}
-{% call heading(1) %}{% endcall %}
-{# We specify both `arg1` and `arg2` so no default value is used #}
-{% call heading(1, 2) %}{% endcall %}
-```
-
-### Call
-
-You can use the content in the call block directly inside the macro by using `{{ caller() }}`:
+However, you can declare macros in a way that allows invoking them with and without body:
 
 ```jinja
 {% macro render_dialog(title, class='dialog') -%}
     <div class="{{ class }}">
         <h2>{{ title }}</h2>
         <div class="contents">
-            {{ caller() }}
+            {% if caller is defined %}
+                {{ caller() }}
+            {% else %}
+                Empty dialog without content
+            {% endif %}
         </div>
     </div>
 {%- endmacro %}
@@ -946,9 +966,23 @@ You can use the content in the call block directly inside the macro by using `{{
     This is a simple dialog rendered by using a macro and
     a call block.
 {% endcall %}
+
+{# invoking it without body: no `caller` will be defined #}
+{{ render_dialog("Empty Dialog") }}
+
+{# invoking it with body: #}
+{% call render_dialog("Nice Dialog") %}
+    This is a simple dialog rendered by using a macro and
+    a call block.
+{% endcall %}
 ```
 
-Here is an example with a call block using arguments:
+### Macro Call Block Arguments
+
+There is a reason why `caller` is a function instead of a variable.
+It allows passing arguments, as well as calling it multiple times from the macro!
+Here is an example macro that invokes the `caller()` method with the argument `user`.
+To invoke this macro, your `call`-block has to declare arguments itself:
 
 ```jinja
 {% macro dump_users(users) -%}
@@ -959,7 +993,8 @@ Here is an example with a call block using arguments:
     </ul>
 {%- endmacro %}
 
-{% call(user) dump_users(list_of_user) %}
+{# This callblock declares the argument `user` for `caller`: #}
+{% call(user) dump_users(list_of_users) %}
     <dl>
         <dt>Realname</dt>
         <dd>{{ user.realname }}</dd>
@@ -968,6 +1003,33 @@ Here is an example with a call block using arguments:
     </dl>
 {% endcall %}
 ```
+
+### Nesting Macros With Content
+
+At certain levels of abstraction, it might make sense to declare a macro that has a body - but will pass the body into another macro invocation.
+
+Macro invocations instantly overwrite the `caller` variable with their own. To be able to access the outer `caller` variable, a small trick is required:
+
+```jinja
+{% macro container() %}
+    <div class="container">
+        {{ caller() }}
+    </div>
+{% endmacro }
+
+{% macro outer_container() %}
+    {# Create an alias to our `caller`, so we can access it within container: #}
+    {% set outer_caller = caller %}
+
+    <div class="outer-container">
+        {# nested macro invocation - will overwrite the `caller` variable: #}
+        {% call container() %}
+            {{ outer_caller() }}
+        {% endmacro %}
+    </div>
+{% endmacro %}
+```
+
 
 ## Calling Rust macros
 

@@ -60,6 +60,16 @@ opt-level = 3
 This may affect clean compile times in debug mode, but incremental compiles
 will be faster.
 
+With a nightly compiler, you can additionally try using the parallel frontend by
+adding the following lines to your `.cargo/config.toml`:
+
+```toml
+[build]
+rustflags = ["-Z", "threads=16"]
+```
+
+This will mostly show noticeable improvements when you have a single large crate with many askama templates.
+
 ## Profile-Guided Optimization (PGO)
 
 To optimize askama's performance, you can compile your application with [Profile-Guided Optimization](https://doc.rust-lang.org/rustc/profile-guided-optimization.html). According to the [tests](https://github.com/mitsuhiko/minijinja/pull/588#issuecomment-2387957123), PGO can improve the library performance by 15%.
