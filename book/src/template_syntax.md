@@ -899,7 +899,7 @@ Additionally to specifying arguments positionally, you can also pass arguments b
 {{ heading(title = "Super Heading", font_size = 42, font_weight = "bold") }}
 ```
 
-Both ways of invocing a macro can even be mixed, though optional arguments always have to come **last** (after all arguments specified positionally):
+Both ways of invoking a macro can even be mixed, though optional arguments always have to come **last** (after all arguments specified positionally):
 
 ```jinja
 {{ heading("Super Heading", font_weight = "bold", font_size = 26) }}
@@ -961,11 +961,6 @@ However, you can declare macros in a way that allows invoking them with and with
         </div>
     </div>
 {%- endmacro %}
-
-{% call() render_dialog('Hello World') %}
-    This is a simple dialog rendered by using a macro and
-    a call block.
-{% endcall %}
 
 {# invoking it without body: no `caller` will be defined #}
 {{ render_dialog("Empty Dialog") }}
