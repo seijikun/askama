@@ -1,15 +1,13 @@
 use core::fmt;
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
 use parser::node::{BlockDef, Macro};
 use parser::{Node, Parsed, Span};
-use rustc_hash::FxBuildHasher;
 
 use crate::config::Config;
 use crate::input::LiteralOrSpan;
-use crate::{CompileError, FileInfo};
+use crate::{CompileError, FileInfo, HashMap};
 
 pub(crate) struct Heritage<'a, 'h> {
     pub(crate) root: &'h Context<'a>,
@@ -19,7 +17,7 @@ pub(crate) struct Heritage<'a, 'h> {
 impl<'a, 'h> Heritage<'a, 'h> {
     pub(crate) fn new(
         mut root: &'h Context<'a>,
-        contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, FxBuildHasher>,
+        contexts: &'a HashMap<&'a Arc<Path>, Context<'a>>,
     ) -> Self {
         let mut blocks: BlockAncestry<'a, 'h> = root
             .blocks
@@ -38,16 +36,15 @@ impl<'a, 'h> Heritage<'a, 'h> {
     }
 }
 
-type BlockAncestry<'a, 'h> =
-    HashMap<&'a str, Vec<(&'h Context<'a>, &'a BlockDef<'a>)>, FxBuildHasher>;
+type BlockAncestry<'a, 'h> = HashMap<&'a str, Vec<(&'h Context<'a>, &'a BlockDef<'a>)>>;
 
 #[derive(Clone)]
 pub(crate) struct Context<'a> {
     pub(crate) nodes: &'a [Box<Node<'a>>],
     pub(crate) extends: Option<Arc<Path>>,
-    pub(crate) blocks: HashMap<&'a str, &'a BlockDef<'a>, FxBuildHasher>,
-    pub(crate) macros: HashMap<&'a str, &'a Macro<'a>, FxBuildHasher>,
-    pub(crate) imports: HashMap<&'a str, Arc<Path>, FxBuildHasher>,
+    pub(crate) blocks: HashMap<&'a str, &'a BlockDef<'a>>,
+    pub(crate) macros: HashMap<&'a str, &'a Macro<'a>>,
+    pub(crate) imports: HashMap<&'a str, Arc<Path>>,
     pub(crate) path: Option<&'a Path>,
     pub(crate) parsed: &'a Parsed,
     pub(crate) literal: Option<LiteralOrSpan>,

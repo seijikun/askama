@@ -23,7 +23,7 @@ pub mod __macro_support {
 }
 
 use std::borrow::{Borrow, Cow};
-use std::collections::hash_map::{Entry, HashMap};
+use std::collections::hash_map::Entry;
 use std::fmt;
 use std::hash::{BuildHasher, Hash};
 use std::path::Path;
@@ -623,7 +623,7 @@ fn var_expr_n(n: usize, span: proc_macro2::Span) -> Ident {
 }
 
 #[derive(Debug)]
-struct OnceMap<K, V>([Mutex<HashMap<K, V, FxBuildHasher>>; 8]);
+struct OnceMap<K, V>([Mutex<HashMap<K, V>>; 8]);
 
 impl<K, V> Default for OnceMap<K, V> {
     fn default() -> Self {
@@ -718,3 +718,5 @@ macro_rules! quote_into {
 }
 
 pub(crate) use {fmt_left, fmt_right, quote_into};
+
+type HashMap<K, V> = std::collections::hash_map::HashMap<K, V, FxBuildHasher>;

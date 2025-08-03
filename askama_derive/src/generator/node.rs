@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::hash_map::{Entry, HashMap};
+use std::collections::hash_map::Entry;
 use std::fmt::Debug;
 use std::mem;
 use std::ops::ControlFlow;
@@ -12,13 +12,14 @@ use parser::node::{
 use parser::{Expr, Node, Span, Target, WithSpan};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
+use rustc_hash::FxBuildHasher;
 use syn::Token;
 
 use super::{DisplayWrap, Generator, LocalMeta, MapChain, compile_time_escape, is_copyable};
 use crate::generator::{LocalCallerMeta, Writable, helpers, logic_op};
 use crate::heritage::{Context, Heritage};
 use crate::integration::{Buffer, string_escape};
-use crate::{CompileError, FileInfo, field_new, fmt_left, fmt_right, quote_into};
+use crate::{CompileError, FileInfo, HashMap, field_new, fmt_left, fmt_right, quote_into};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn impl_template_inner(
@@ -1270,7 +1271,8 @@ impl<'a> Generator<'a, '_> {
 
         let mut targets = Buffer::new();
         let mut lines = Buffer::new();
-        let mut expr_cache = HashMap::with_capacity(self.buf_writable.len());
+        let mut expr_cache =
+            HashMap::with_capacity_and_hasher(self.buf_writable.len(), FxBuildHasher);
         // the `last_line` contains any sequence of trailing simple `writer.write_str()` calls
         let mut trailing_simple_lines = Vec::new();
 

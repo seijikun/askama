@@ -1,5 +1,5 @@
 use std::borrow::{Borrow, Cow};
-use std::collections::btree_map::{BTreeMap, Entry};
+use std::collections::hash_map::Entry;
 use std::mem::ManuallyDrop;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -12,12 +12,12 @@ use proc_macro2::Span;
 #[cfg(feature = "config")]
 use serde_derive::Deserialize;
 
-use crate::{CompileError, FileInfo, OnceMap};
+use crate::{CompileError, FileInfo, HashMap, OnceMap};
 
 #[derive(Debug)]
 pub(crate) struct Config {
     pub(crate) dirs: Vec<PathBuf>,
-    pub(crate) syntaxes: BTreeMap<String, SyntaxAndCache<'static>>,
+    pub(crate) syntaxes: HashMap<String, SyntaxAndCache<'static>>,
     pub(crate) default_syntax: &'static str,
     pub(crate) escapers: Vec<(Vec<Cow<'static, str>>, Cow<'static, str>)>,
     pub(crate) whitespace: Whitespace,
@@ -107,7 +107,7 @@ impl Config {
 
         let default_dirs = vec![root.join("templates")];
 
-        let mut syntaxes = BTreeMap::new();
+        let mut syntaxes = HashMap::default();
         syntaxes.insert(DEFAULT_SYNTAX_NAME.to_string(), SyntaxAndCache::default());
 
         let raw = if s.is_empty() {

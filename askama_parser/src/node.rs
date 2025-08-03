@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::str::{self, FromStr};
 
 use winnow::combinator::{
@@ -11,8 +10,8 @@ use winnow::token::{any, rest, take_until};
 use winnow::{ModalParser, Parser};
 
 use crate::{
-    ErrorContext, Expr, Filter, ParseResult, Span, State, Target, WithSpan, cut_error, filter,
-    identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
+    ErrorContext, Expr, Filter, HashSet, ParseResult, Span, State, Target, WithSpan, cut_error,
+    filter, identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -685,7 +684,7 @@ impl<'a> Macro<'a> {
         }
 
         if let Some(ref params) = params {
-            let mut names = HashSet::new();
+            let mut names = HashSet::default();
 
             let mut iter = params.iter();
             while let Some((arg_name, default_value)) = iter.next() {
