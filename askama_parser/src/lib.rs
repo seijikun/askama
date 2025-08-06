@@ -18,6 +18,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::{fmt, str};
 
+use rustc_hash::FxBuildHasher;
 use winnow::ascii::take_escaped;
 use winnow::combinator::{
     alt, cut_err, delimited, empty, fail, not, opt, peek, preceded, repeat, terminated,
@@ -1462,6 +1463,8 @@ pub(crate) use cut_error;
 fn cut_context_err<'a, T>(gen_err: impl FnOnce() -> ErrorContext<'a>) -> ParseResult<'a, T> {
     Err(ErrMode::Cut(gen_err()))
 }
+
+type HashSet<T> = std::collections::hash_set::HashSet<T, FxBuildHasher>;
 
 #[cfg(not(windows))]
 #[cfg(test)]

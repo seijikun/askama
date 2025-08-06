@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::str;
 
 use winnow::Parser;
@@ -11,9 +10,9 @@ use winnow::token::{one_of, take_until};
 
 use crate::node::CondTest;
 use crate::{
-    CharLit, ErrorContext, Level, Num, ParseResult, PathOrIdentifier, StrLit, StrPrefix, WithSpan,
-    can_be_variable_name, char_lit, cut_error, filter, identifier, keyword, not_suffix_with_hash,
-    num_lit, path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
+    CharLit, ErrorContext, HashSet, Level, Num, ParseResult, PathOrIdentifier, StrLit, StrPrefix,
+    WithSpan, can_be_variable_name, char_lit, cut_error, filter, identifier, keyword,
+    not_suffix_with_hash, num_lit, path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -253,7 +252,7 @@ impl<'a> Expr<'a> {
         level: Level<'_>,
     ) -> ParseResult<'a, Vec<WithSpan<'a, Box<Self>>>> {
         let _level_guard = level.nest(i)?;
-        let mut named_arguments = HashSet::new();
+        let mut named_arguments = HashSet::default();
         let start = *i;
 
         preceded(

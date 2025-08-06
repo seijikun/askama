@@ -21,6 +21,7 @@ name = "from_str"
 harness = false
 
 [dependencies]
+rustc-hash = "2.0.0"
 serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }
 unicode-ident = "1.0.12"

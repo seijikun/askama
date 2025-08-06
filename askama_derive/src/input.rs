@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -7,13 +6,12 @@ use std::sync::Arc;
 use parser::node::Whitespace;
 use parser::{Node, Parsed};
 use proc_macro2::Span;
-use rustc_hash::FxBuildHasher;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Attribute, Expr, ExprLit, ExprPath, Ident, Lit, LitBool, LitStr, Meta, Token};
 
 use crate::config::{Config, SyntaxAndCache};
-use crate::{CompileError, FileInfo, MsgValidEscapers};
+use crate::{CompileError, FileInfo, HashMap, MsgValidEscapers};
 
 #[derive(Clone, Debug)]
 pub(crate) enum LiteralOrSpan {
@@ -178,7 +176,7 @@ impl TemplateInput<'_> {
 
     pub(crate) fn find_used_templates(
         &self,
-        map: &mut HashMap<Arc<Path>, Arc<Parsed>, FxBuildHasher>,
+        map: &mut HashMap<Arc<Path>, Arc<Parsed>>,
     ) -> Result<(), CompileError> {
         let (source, source_path) = match &self.source {
             Source::Source(s) => (s.clone(), None),

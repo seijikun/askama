@@ -1,19 +1,17 @@
 use core::fmt;
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::fmt::Write;
 use std::mem;
 
 use parser::node::{Call, Macro, Ws};
 use parser::{Expr, Span, WithSpan};
 use quote::quote_spanned;
-use rustc_hash::FxBuildHasher;
 
 use crate::generator::node::AstLevel;
 use crate::generator::{Generator, LocalMeta, is_copyable};
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{CompileError, field_new, quote_into};
+use crate::{CompileError, HashMap, field_new, quote_into};
 
 /// Helper to generate the code for macro invocations
 pub(crate) struct MacroInvocation<'a, 'b> {
@@ -97,14 +95,14 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         buf: &'b mut Buffer,
         generator: &mut Generator<'a, 'h>,
     ) -> Result<(), CompileError> {
-        let mut named_arguments: HashMap<&str, _, FxBuildHasher> = HashMap::default();
+        let mut named_arguments = HashMap::default();
         if let Some(Expr::NamedArgument(_, _)) = self.call_args.last().map(|expr| &***expr) {
             // First we check that all named arguments actually exist in the called item.
             for (index, arg) in self.call_args.iter().enumerate().rev() {
-                let Expr::NamedArgument(arg_name, _) = &***arg else {
+                let &Expr::NamedArgument(arg_name, _) = &***arg else {
                     break;
                 };
-                if !self.macro_def.args.iter().any(|(arg, _)| arg == arg_name) {
+                if !self.macro_def.args.iter().any(|&(arg, _)| arg == arg_name) {
                     return Err(self.callsite_ctx.generate_error(
                         format_args!(
                             "no argument named `{arg_name}` in macro {}",

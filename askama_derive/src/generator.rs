@@ -4,7 +4,6 @@ mod helpers;
 mod node;
 
 use std::borrow::Cow;
-use std::collections::hash_map::HashMap;
 use std::env::current_dir;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
@@ -15,7 +14,6 @@ use parser::node::{Call, Macro, Whitespace};
 use parser::{CharLit, Expr, FloatKind, IntKind, Num, StrLit, WithSpan};
 use proc_macro2::TokenStream;
 use quote::{ToTokens, quote_spanned};
-use rustc_hash::FxBuildHasher;
 use syn::Token;
 
 use crate::generator::helpers::{clean_path, diff_paths};
@@ -23,12 +21,12 @@ use crate::heritage::{Context, Heritage};
 use crate::html::write_escaped_str;
 use crate::input::{Source, TemplateInput};
 use crate::integration::{Buffer, impl_everything, write_header};
-use crate::{CompileError, FileInfo, field_new, quote_into};
+use crate::{CompileError, FileInfo, HashMap, field_new, quote_into};
 
 pub(crate) fn template_to_string(
     buf: &mut Buffer,
     input: &TemplateInput<'_>,
-    contexts: &HashMap<&Arc<Path>, Context<'_>, FxBuildHasher>,
+    contexts: &HashMap<&Arc<Path>, Context<'_>>,
     heritage: Option<&Heritage<'_, '_>>,
     tmpl_kind: TmplKind<'_>,
 ) -> Result<usize, CompileError> {
@@ -69,7 +67,7 @@ struct Generator<'a, 'h> {
     /// The template input state: original struct AST and attributes
     input: &'a TemplateInput<'a>,
     /// All contexts, keyed by the package-relative template path
-    contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, FxBuildHasher>,
+    contexts: &'a HashMap<&'a Arc<Path>, Context<'a>>,
     /// The heritage contains references to blocks and their ancestry
     heritage: Option<&'h Heritage<'a, 'h>>,
     /// Variables accessible directly from the current scope (not redirected to context)
@@ -102,7 +100,7 @@ enum CallerDir {
 impl<'a, 'h> Generator<'a, 'h> {
     fn new(
         input: &'a TemplateInput<'a>,
-        contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, FxBuildHasher>,
+        contexts: &'a HashMap<&'a Arc<Path>, Context<'a>>,
         heritage: Option<&'h Heritage<'a, 'h>>,
         locals: MapChain<'a>,
         buf_writable_discard: bool,
@@ -619,7 +617,7 @@ impl<'a> LocalMeta<'a> {
 }
 
 struct MapChain<'a> {
-    scopes: Vec<HashMap<Cow<'a, str>, LocalMeta<'a>, FxBuildHasher>>,
+    scopes: Vec<HashMap<Cow<'a, str>, LocalMeta<'a>>>,
 }
 
 impl<'a> MapChain<'a> {
