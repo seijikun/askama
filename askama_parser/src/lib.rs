@@ -23,7 +23,7 @@ use winnow::ascii::take_escaped;
 use winnow::combinator::{
     alt, cond, cut_err, delimited, empty, fail, not, opt, peek, preceded, repeat, terminated,
 };
-use winnow::error::{ErrMode, FromExternalError};
+use winnow::error::ErrMode;
 use winnow::stream::AsChar;
 use winnow::token::{any, none_of, one_of, take_while};
 use winnow::{LocatingSlice, ModalParser, ModalResult, Parser, Stateful};
@@ -368,15 +368,6 @@ impl<'a> winnow::error::ParserError<InputStream<'a>> for ErrorContext<'a> {
     #[inline(always)]
     fn into_inner(self) -> Result<Self::Inner, Self> {
         Ok(self)
-    }
-}
-
-impl<'a, E: std::fmt::Display> FromExternalError<&'a str, E> for ErrorContext<'a> {
-    fn from_external_error(input: &&'a str, e: E) -> Self {
-        Self {
-            span: (*input).into(),
-            message: Some(Cow::Owned(e.to_string())),
-        }
     }
 }
 

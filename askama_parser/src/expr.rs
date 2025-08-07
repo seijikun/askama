@@ -179,20 +179,19 @@ impl<'a> PathComponent<'a> {
         i: &mut InputStream<'a>,
         level: Level<'_>,
     ) -> ParseResult<'a, WithSpan<'a, Self>> {
-        let start = ***i;
         (
             identifier,
             opt((ws("::"), |i: &mut _| TyGenerics::args(i, level))),
         )
+            .with_taken()
             .parse_next(i)
-            .map(|(name, generics)| {
-                WithSpan::new(
+            .map(|((name, generics), span)| {
+                WithSpan::new_with_full(
                     Self {
                         name,
                         generics: generics.map(|(_, generics)| generics).unwrap_or_default(),
                     },
-                    start,
-                    i,
+                    span,
                 )
             })
     }
@@ -297,15 +296,15 @@ impl<'a> Expr<'a> {
         named_arguments: &mut HashSet<&'a str>,
         start: &'a str,
     ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
-        let (argument, _, value) = (identifier, ws('='), move |i: &mut _| {
+        let ((argument, _, value), span) = (identifier, ws('='), move |i: &mut _| {
             Self::parse(i, level, false)
         })
+            .with_taken()
             .parse_next(i)?;
         if named_arguments.insert(argument) {
-            Ok(WithSpan::new(
+            Ok(WithSpan::new_with_full(
                 Box::new(Self::NamedArgument(argument, value)),
-                start,
-                i,
+                span,
             ))
         } else {
             cut_error!(
@@ -376,16 +375,14 @@ impl<'a> Expr<'a> {
             (ws(op), |i: &mut _| Self::bor(i, level)).parse_next(i)
         };
 
-        let start = ***i;
-        let expr = Self::bor(i, level)?;
-        let Some((op, rhs)) = opt(right).parse_next(i)? else {
+        let ((expr, rhs), span) = (|i: &mut _| Self::bor(i, level), opt(right))
+            .with_taken()
+            .parse_next(i)?;
+        let Some((op, rhs)) = rhs else {
             return Ok(expr);
         };
-        let expr = WithSpan::new(
-            Box::new(Expr::BinOp(BinOp { op, lhs: expr, rhs })),
-            start,
-            i,
-        );
+        let expr =
+            WithSpan::new_with_full(Box::new(Expr::BinOp(BinOp { op, lhs: expr, rhs })), span);
 
         if let Some((op2, _)) = opt(right).parse_next(i)? {
             return cut_error!(
