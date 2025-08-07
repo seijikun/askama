@@ -54,7 +54,7 @@ error: unicode escape must be at most 10FFFF
 28 | #[template(path = "char-literals/char-literal-7.txt")]
    |   ^^^^^^^^
 
-error: invalid character
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
  --> <source attribute>:1:11
        "'aaa' %}"
   --> tests/ui/char_literal.rs:32:21
@@ -62,7 +62,7 @@ error: invalid character
 32 | #[template(source = "{% let s = 'aaa' %}", ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^
 
-error: unterminated byte constant
+error: unterminated byte literal
  --> <source attribute>:1:3
        "b'c }}"
   --> tests/ui/char_literal.rs:36:21
@@ -70,7 +70,7 @@ error: unterminated byte constant
 36 | #[template(source = r#"{{ b'c }}"#, ext = "html")]
    |                     ^^^^^^^^^^^^^^
 
-error: empty character literal
+error: empty byte literal
  --> <source attribute>:1:3
        "b'' }}"
   --> tests/ui/char_literal.rs:40:21
@@ -134,7 +134,7 @@ error: cannot use unicode escape in byte string in byte literal
 68 | #[template(source = r#"{{ b'\u{10ffff}' }}"#, ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: unterminated byte constant
+error: unterminated byte literal
  --> <source attribute>:1:6
        "b'c) }}"
   --> tests/ui/char_literal.rs:72:21
@@ -142,7 +142,7 @@ error: unterminated byte constant
 72 | #[template(source = r#"{{ a!(b'c) }}"#, ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^
 
-error: empty character literal
+error: empty byte literal
  --> <source attribute>:1:3
        "b'' }}"
   --> tests/ui/char_literal.rs:76:21

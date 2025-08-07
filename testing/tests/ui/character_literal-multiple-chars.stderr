@@ -1,0 +1,223 @@
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:3
+       "'ab' }}"
+ --> tests/ui/character_literal-multiple-chars.rs:4:21
+  |
+4 | #[template(source = r#"{{ 'ab' }}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:3
+       "'\\0b' }}"
+ --> tests/ui/character_literal-multiple-chars.rs:8:21
+  |
+8 | #[template(source = r#"{{ '\0b' }}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:3
+       "'b\\0' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:12:21
+   |
+12 | #[template(source = r#"{{ 'b\0' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:3
+       "'\\\\0' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:16:21
+   |
+16 | #[template(source = r#"{{ '\\0' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:3
+       "'\\u{1234}b' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:20:21
+   |
+20 | #[template(source = r#"{{ '\u{1234}b' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:3
+       "'\\u{1234}b' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:24:21
+   |
+24 | #[template(source = r#"{{ '\u{1234}b' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:3
+       "'\\u{1234}\\u{1234}' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:28:21
+   |
+28 | #[template(source = r#"{{ '\u{1234}\u{1234}' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:3
+       "b'ab' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:32:21
+   |
+32 | #[template(source = r#"{{ b'ab' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:3
+       "b'\\0b' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:36:21
+   |
+36 | #[template(source = r#"{{ b'\0b' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:3
+       "b'b\\0' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:40:21
+   |
+40 | #[template(source = r#"{{ b'b\0' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:3
+       "b'\\\\0' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:44:21
+   |
+44 | #[template(source = r#"{{ b'\\0' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:3
+       "b'\\u{1234}b' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:48:21
+   |
+48 | #[template(source = r#"{{ b'\u{1234}b' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:3
+       "b'\\u{1234}b' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:52:21
+   |
+52 | #[template(source = r#"{{ b'\u{1234}b' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:3
+       "b'\\u{1234}\\u{1234}' }}"
+  --> tests/ui/character_literal-multiple-chars.rs:56:21
+   |
+56 | #[template(source = r#"{{ b'\u{1234}\u{1234}' }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:6
+       "'ab') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:60:21
+   |
+60 | #[template(source = r#"{{ x!('ab') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:6
+       "'\\0b') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:64:21
+   |
+64 | #[template(source = r#"{{ x!('\0b') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:6
+       "'b\\0') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:68:21
+   |
+68 | #[template(source = r#"{{ x!('b\0') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:6
+       "'\\\\0') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:72:21
+   |
+72 | #[template(source = r#"{{ x!('\\0') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:6
+       "'\\u{1234}b') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:76:21
+   |
+76 | #[template(source = r#"{{ x!('\u{1234}b') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:6
+       "'\\u{1234}b') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:80:21
+   |
+80 | #[template(source = r#"{{ x!('\u{1234}b') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a character literal, use `"..."` to write a string
+ --> <source attribute>:1:6
+       "'\\u{1234}\\u{1234}') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:84:21
+   |
+84 | #[template(source = r#"{{ x!('\u{1234}\u{1234}') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:6
+       "b'ab') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:88:21
+   |
+88 | #[template(source = r#"{{ x!(b'ab') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:6
+       "b'\\0b') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:92:21
+   |
+92 | #[template(source = r#"{{ x!(b'\0b') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:6
+       "b'b\\0') }}"
+  --> tests/ui/character_literal-multiple-chars.rs:96:21
+   |
+96 | #[template(source = r#"{{ x!(b'b\0') }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:6
+       "b'\\\\0') }}"
+   --> tests/ui/character_literal-multiple-chars.rs:100:21
+    |
+100 | #[template(source = r#"{{ x!(b'\\0') }}"#, ext = "html")]
+    |                     ^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:6
+       "b'\\u{1234}b') }}"
+   --> tests/ui/character_literal-multiple-chars.rs:104:21
+    |
+104 | #[template(source = r#"{{ x!(b'\u{1234}b') }}"#, ext = "html")]
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:6
+       "b'\\u{1234}b') }}"
+   --> tests/ui/character_literal-multiple-chars.rs:108:21
+    |
+108 | #[template(source = r#"{{ x!(b'\u{1234}b') }}"#, ext = "html")]
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot have multiple characters in a byte literal, use `b"..."` to write a binary string
+ --> <source attribute>:1:6
+       "b'\\u{1234}\\u{1234}') }}"
+   --> tests/ui/character_literal-multiple-chars.rs:112:21
+    |
+112 | #[template(source = r#"{{ x!(b'\u{1234}\u{1234}') }}"#, ext = "html")]
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

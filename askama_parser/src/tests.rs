@@ -1,9 +1,9 @@
-use winnow::Parser;
+use winnow::{LocatingSlice, Parser};
 
 use crate::node::{Lit, Raw, Whitespace, Ws};
 use crate::{
-    Ast, Expr, Filter, InnerSyntax, Node, Num, PathComponent, PathOrIdentifier, Span, StrLit,
-    Syntax, SyntaxBuilder, WithSpan,
+    Ast, Expr, Filter, InnerSyntax, InputStream, Node, Num, PathComponent, PathOrIdentifier, Span,
+    StrLit, Syntax, SyntaxBuilder, WithSpan,
 };
 
 impl<T> WithSpan<'static, T> {
@@ -1349,10 +1349,13 @@ fn test_filter_with_path() {
 
 #[test]
 fn underscore_is_an_identifier() {
-    let mut input = "_";
+    let mut input = InputStream {
+        input: LocatingSlice::new("_"),
+        state: (),
+    };
     let result = crate::identifier.parse_next(&mut input);
     assert_eq!(result.unwrap(), "_");
-    assert_eq!(input, "");
+    assert_eq!(**input, "");
 }
 
 #[test]
