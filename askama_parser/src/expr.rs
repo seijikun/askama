@@ -571,33 +571,86 @@ impl<'a> Expr<'a> {
         i: &mut InputStream<'a>,
         level: Level<'_>,
     ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
-        let start = ***i;
-        let expr = preceded(ws('('), opt(|i: &mut _| Self::parse(i, level, true))).parse_next(i)?;
-        let Some(expr) = expr else {
-            let _ = ')'.parse_next(i)?;
-            return Ok(WithSpan::new(Box::new(Self::Tuple(vec![])), start, i));
-        };
+        ws('(').parse_next(i)?;
+        Self::group_actually(i, level)
+    }
 
-        let comma = ws(opt(peek(','))).parse_next(i)?;
-        if comma.is_none() {
-            let _ = ')'.parse_next(i)?;
-            return Ok(WithSpan::new(Box::new(Self::Group(expr)), start, i));
+    // `Self::group()` is quite big. Let's only put it on the stack if needed.
+    #[inline(never)]
+    fn group_actually(
+        i: &mut InputStream<'a>,
+        level: Level<'_>,
+    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+        let (expr, span) = cut_err(|i: &mut _| Self::group_actually_inner(i, level))
+            .with_taken()
+            .parse_next(i)?;
+        Ok(WithSpan::new_with_full(expr, span.trim_ascii()))
+    }
+
+    #[inline]
+    fn group_actually_inner(
+        i: &mut InputStream<'a>,
+        level: Level<'_>,
+    ) -> ParseResult<'a, Box<Self>> {
+        enum GroupResult<'a> {
+            Tuple(WithSpan<'a, Box<Expr<'a>>>),
+            Expr(Box<Expr<'a>>),
+            Err(&'static str),
         }
 
+        let (expr, comma, closing) = (
+            opt(|i: &mut _| Self::parse(i, level, true)),
+            ws(opt(','.take())),
+            opt(')'),
+        )
+            .parse_next(i)?;
+
+        let result = match (expr, comma, closing) {
+            // `(expr,`
+            (Some(expr), Some(_), None) => GroupResult::Tuple(expr),
+            // `()`
+            (None, None, Some(_)) => GroupResult::Expr(Box::new(Self::Tuple(vec![]))),
+            // `(expr)`
+            (Some(expr), None, Some(_)) => GroupResult::Expr(Box::new(Self::Group(expr))),
+            // `(expr,)`
+            (Some(expr), Some(_), Some(_)) => GroupResult::Expr(Box::new(Self::Tuple(vec![expr]))),
+            // `(`
+            (None, None, None) => GroupResult::Err("expected closing `)` or an expression"),
+            // `(expr`
+            (Some(_), None, None) => GroupResult::Err("expected `,` or `)`"),
+            // `(,`
+            (None, Some(span), _) => return cut_error!("stray comma after opening `(`", span),
+        };
+        let expr = match result {
+            GroupResult::Tuple(expr) => expr,
+            GroupResult::Expr(expr) => return Ok(expr),
+            GroupResult::Err(msg) => return cut_error!(msg, ***i),
+        };
+
         let mut exprs = vec![expr];
-        repeat(
-            0..,
-            preceded(',', ws(|i: &mut _| Self::parse(i, level, true))),
-        )
-        .fold(
-            || (),
-            |(), expr| {
-                exprs.push(expr);
+        let collect_items = opt(separated(
+            1..,
+            |i: &mut _| {
+                exprs.push(Self::parse(i, level, true)?);
+                Ok(())
             },
+            ws(','),
         )
-        .parse_next(i)?;
-        let _ = (ws(opt(',')), ')').parse_next(i)?;
-        Ok(WithSpan::new(Box::new(Self::Tuple(exprs)), start, i))
+        .map(|()| ()));
+
+        let ((items, comma, close), span) = cut_err((collect_items, ws(opt(',')), opt(')')))
+            .with_taken()
+            .parse_next(i)?;
+        let msg = if items.is_none() {
+            "expected `)` or an expression"
+        } else if close.is_some() {
+            return Ok(Box::new(Self::Tuple(exprs)));
+        } else if comma.is_some() {
+            "expected `)` or an expression"
+        } else {
+            "expected `,` or `)`"
+        };
+        cut_error!(msg, span)
     }
 
     fn array(
