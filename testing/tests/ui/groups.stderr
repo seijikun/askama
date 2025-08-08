@@ -1,0 +1,143 @@
+error: expected closing `)` or an expression
+ --> <source attribute>:1:16
+       "%}"
+ --> tests/ui/groups.rs:4:21
+  |
+4 | #[template(source = r#"{% let test = ( %}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` or an expression
+ --> <source attribute>:1:18
+       "%}"
+ --> tests/ui/groups.rs:8:21
+  |
+8 | #[template(source = r#"{% let test = (a, %}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `,` or `)`
+ --> <source attribute>:1:18
+       "b %}"
+  --> tests/ui/groups.rs:12:21
+   |
+12 | #[template(source = r#"{% let test = (a, b %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` or an expression
+ --> <source attribute>:1:18
+       "b, %}"
+  --> tests/ui/groups.rs:16:21
+   |
+16 | #[template(source = r#"{% let test = (a, b, %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `,` or `)`
+ --> <source attribute>:1:18
+       "%}"
+  --> tests/ui/groups.rs:20:21
+   |
+20 | #[template(source = r#"{% let test = (() %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `,` or `)`
+ --> <source attribute>:1:20
+       "%}"
+  --> tests/ui/groups.rs:24:21
+   |
+24 | #[template(source = r#"{% let test = ((()) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: stray comma after opening `(`
+ --> <source attribute>:1:15
+       ",) %}"
+  --> tests/ui/groups.rs:28:21
+   |
+28 | #[template(source = r#"{% let test = (,) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: stray comma after opening `(`
+ --> <source attribute>:1:15
+       ",,) %}"
+  --> tests/ui/groups.rs:32:21
+   |
+32 | #[template(source = r#"{% let test = (,,) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` or an expression
+ --> <source attribute>:1:17
+       ",) %}"
+  --> tests/ui/groups.rs:36:21
+   |
+36 | #[template(source = r#"{% let test = (a,,) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` or an expression
+ --> <source attribute>:1:18
+       "b,,) %}"
+  --> tests/ui/groups.rs:40:21
+   |
+40 | #[template(source = r#"{% let test = (a, b,,) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: stray comma after opening `(`
+ --> <source attribute>:1:15
+       ", %}"
+  --> tests/ui/groups.rs:44:21
+   |
+44 | #[template(source = r#"{% let test = (, %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: stray comma after opening `(`
+ --> <source attribute>:1:15
+       ",, %}"
+  --> tests/ui/groups.rs:48:21
+   |
+48 | #[template(source = r#"{% let test = (,, %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` or an expression
+ --> <source attribute>:1:17
+       ", %}"
+  --> tests/ui/groups.rs:52:21
+   |
+52 | #[template(source = r#"{% let test = (a,, %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` or an expression
+ --> <source attribute>:1:18
+       "b,, %}"
+  --> tests/ui/groups.rs:56:21
+   |
+56 | #[template(source = r#"{% let test = (a, b,, %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `,` or `)`
+ --> <source attribute>:1:17
+       "b) %}"
+  --> tests/ui/groups.rs:60:21
+   |
+60 | #[template(source = r#"{% let test = (a b) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `,` or `)`
+ --> <source attribute>:1:17
+       "b c) %}"
+  --> tests/ui/groups.rs:64:21
+   |
+64 | #[template(source = r#"{% let test = (a b c) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `,` or `)`
+ --> <source attribute>:1:17
+       "b %}"
+  --> tests/ui/groups.rs:68:21
+   |
+68 | #[template(source = r#"{% let test = (a b %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `,` or `)`
+ --> <source attribute>:1:17
+       "b c %}"
+  --> tests/ui/groups.rs:72:21
+   |
+72 | #[template(source = r#"{% let test = (a b c %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

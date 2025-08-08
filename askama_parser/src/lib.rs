@@ -21,12 +21,12 @@ use std::{fmt, str};
 use rustc_hash::FxBuildHasher;
 use winnow::ascii::take_escaped;
 use winnow::combinator::{
-    alt, cut_err, delimited, empty, fail, not, opt, peek, preceded, repeat, terminated,
+    alt, cond, cut_err, delimited, empty, fail, not, opt, peek, preceded, repeat, terminated,
 };
-use winnow::error::{ErrMode, FromExternalError};
+use winnow::error::ErrMode;
 use winnow::stream::AsChar;
 use winnow::token::{any, none_of, one_of, take_while};
-use winnow::{ModalParser, Parser};
+use winnow::{LocatingSlice, ModalParser, ModalResult, Parser, Stateful};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
 pub use crate::expr::{AssociatedItem, Expr, Filter, PathComponent, TyGenerics};
@@ -102,6 +102,8 @@ mod _parsed {
 
 pub use _parsed::Parsed;
 
+type InputStream<'a> = Stateful<LocatingSlice<&'a str>, ()>;
+
 #[derive(Debug, Default)]
 pub struct Ast<'a> {
     nodes: Vec<Box<Node<'a>>>,
@@ -111,7 +113,7 @@ impl<'a> Ast<'a> {
     /// If `file_path` is `None`, it means the `source` is an inline template. Therefore, if
     /// a parsing error occurs, we won't display the path as it wouldn't be useful.
     pub fn from_str(
-        mut src: &'a str,
+        src: &'a str,
         file_path: Option<Arc<Path>>,
         syntax: &Syntax<'_>,
     ) -> Result<Self, ParseError> {
@@ -121,6 +123,10 @@ impl<'a> Ast<'a> {
             syntax,
             loop_depth: Cell::new(0),
             level: Level(&level),
+        };
+        let mut src = InputStream {
+            input: LocatingSlice::new(src),
+            state: (),
         };
         match Node::parse_template(&mut src, &state) {
             Ok(nodes) if src.is_empty() => Ok(Self { nodes }),
@@ -348,12 +354,13 @@ impl<'a> ErrorContext<'a> {
     }
 }
 
-impl<'a> winnow::error::ParserError<&'a str> for ErrorContext<'a> {
+impl<'a> winnow::error::ParserError<InputStream<'a>> for ErrorContext<'a> {
     type Inner = Self;
 
-    fn from_input(input: &&'a str) -> Self {
+    #[inline]
+    fn from_input(input: &InputStream<'a>) -> Self {
         Self {
-            span: (*input).into(),
+            span: Span(***input),
             message: None,
         }
     }
@@ -364,49 +371,35 @@ impl<'a> winnow::error::ParserError<&'a str> for ErrorContext<'a> {
     }
 }
 
-impl<'a, E: std::fmt::Display> FromExternalError<&'a str, E> for ErrorContext<'a> {
-    fn from_external_error(input: &&'a str, e: E) -> Self {
-        Self {
-            span: (*input).into(),
-            message: Some(Cow::Owned(e.to_string())),
-        }
-    }
+fn skip_ws0<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
+    take_while(0.., |c: char| c.is_ascii_whitespace())
+        .void()
+        .parse_next(i)
 }
 
-#[inline]
-fn skip_ws0<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
-    *i = i.trim_ascii_start();
-    Ok(())
-}
-
-#[inline]
-fn skip_ws1<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
-    let j = i.trim_ascii_start();
-    if i.len() != j.len() {
-        *i = i.trim_ascii_start();
-        Ok(())
-    } else {
-        fail.parse_next(i)
-    }
+fn skip_ws1<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
+    take_while(1.., |c: char| c.is_ascii_whitespace())
+        .void()
+        .parse_next(i)
 }
 
 fn ws<'a, O>(
-    inner: impl ModalParser<&'a str, O, ErrorContext<'a>>,
-) -> impl ModalParser<&'a str, O, ErrorContext<'a>> {
+    inner: impl ModalParser<InputStream<'a>, O, ErrorContext<'a>>,
+) -> impl ModalParser<InputStream<'a>, O, ErrorContext<'a>> {
     delimited(skip_ws0, inner, skip_ws0)
 }
 
-fn keyword(k: &str) -> impl ModalParser<&str, &str, ErrorContext<'_>> {
+fn keyword<'a>(k: &str) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext<'a>> {
     identifier.verify(move |v: &str| v == k)
 }
 
-fn identifier<'i>(input: &mut &'i str) -> ParseResult<'i> {
+fn identifier<'i>(input: &mut InputStream<'i>) -> ParseResult<'i> {
     let head = any.verify(|&c| c == '_' || unicode_ident::is_xid_start(c));
     let tail = take_while(.., unicode_ident::is_xid_continue);
     (head, tail).take().parse_next(input)
 }
 
-fn bool_lit<'i>(i: &mut &'i str) -> ParseResult<'i> {
+fn bool_lit<'i>(i: &mut InputStream<'i>) -> ParseResult<'i> {
     alt((keyword("false"), keyword("true"))).parse_next(i)
 }
 
@@ -416,12 +409,12 @@ pub enum Num<'a> {
     Float(&'a str, Option<FloatKind>),
 }
 
-fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
+fn num_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Num<'a>> {
     fn num_lit_suffix<'a, T: Copy>(
         kind: &'a str,
         list: &[(&str, T)],
         start: &'a str,
-        i: &mut &'a str,
+        i: &mut InputStream<'a>,
     ) -> ParseResult<'a, T> {
         let suffix = identifier.parse_next(i)?;
         if let Some(value) = list
@@ -435,7 +428,7 @@ fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
         }
     }
 
-    let start = *i;
+    let start = ***i;
 
     // Equivalent to <https://github.com/rust-lang/rust/blob/e3f909b2bbd0b10db6f164d466db237c582d3045/compiler/rustc_lexer/src/lib.rs#L587-L620>.
     let int_with_base = (opt('-'), |i: &mut _| {
@@ -450,7 +443,7 @@ fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
 
     // Equivalent to <https://github.com/rust-lang/rust/blob/e3f909b2bbd0b10db6f164d466db237c582d3045/compiler/rustc_lexer/src/lib.rs#L626-L653>:
     // no `_` directly after the decimal point `.`, or between `e` and `+/-`.
-    let float = |i: &mut &'a str| -> ParseResult<'a, ()> {
+    let float = |i: &mut InputStream<'a>| -> ParseResult<'a, ()> {
         let has_dot = opt(('.', separated_digits(10, true))).parse_next(i)?;
         let has_exp = opt(|i: &mut _| {
             let (kind, op) = (one_of(['e', 'E']), opt(one_of(['+', '-']))).parse_next(i)?;
@@ -467,10 +460,7 @@ fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
         .parse_next(i)?;
         match (has_dot, has_exp) {
             (Some(_), _) | (_, Some(())) => Ok(()),
-            _ => {
-                *i = start;
-                fail.parse_next(i)
-            }
+            _ => fail(i),
         }
     };
 
@@ -504,12 +494,9 @@ fn num_lit<'a>(i: &mut &'a str) -> ParseResult<'a, Num<'a>> {
 fn separated_digits<'a>(
     radix: u32,
     start: bool,
-) -> impl ModalParser<&'a str, &'a str, ErrorContext<'a>> {
+) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext<'a>> {
     (
-        move |i: &mut &'a _| match start {
-            true => Ok(()),
-            false => repeat(0.., '_').parse_next(i),
-        },
+        cond(!start, repeat(0.., '_').map(|()| ())),
         one_of(move |ch: char| ch.is_digit(radix)),
         repeat(0.., one_of(move |ch: char| ch == '_' || ch.is_digit(radix))).map(|()| ()),
     )
@@ -560,10 +547,10 @@ pub struct StrLit<'a> {
     pub contains_high_ascii: bool,
 }
 
-fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
+fn str_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
     // <https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str.syntax>
 
-    fn inner<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
+    fn inner<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         enum Sequence<'a> {
             Text(&'a str),
@@ -572,7 +559,7 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
             Cr(bool),
         }
 
-        let start = *i;
+        let start = ***i;
         let mut contains_null = false;
         let mut contains_unicode_character = false;
         let mut contains_unicode_escape = false;
@@ -656,7 +643,7 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
         })
     }
 
-    let start = *i;
+    let start = ***i;
 
     let prefix = terminated(
         opt(alt((
@@ -697,7 +684,7 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
     Ok(lit)
 }
 
-fn not_suffix_with_hash<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
+fn not_suffix_with_hash<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
     if let Some(suffix) = opt(identifier.take()).parse_next(i)? {
         return cut_error!(
             "you are missing a space to separate two string literals",
@@ -707,8 +694,8 @@ fn not_suffix_with_hash<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
     Ok(())
 }
 
-fn str_lit_without_prefix<'a>(i: &mut &'a str) -> ParseResult<'a> {
-    let start = *i;
+fn str_lit_without_prefix<'a>(i: &mut InputStream<'a>) -> ParseResult<'a> {
+    let start = ***i;
     let lit = str_lit.parse_next(i)?;
 
     let kind = match lit.prefix {
@@ -739,42 +726,62 @@ pub struct CharLit<'a> {
 
 // Information about allowed character escapes is available at:
 // <https://doc.rust-lang.org/reference/tokens.html#character-literals>.
-fn char_lit<'a>(i: &mut &'a str) -> ParseResult<'a, CharLit<'a>> {
-    let start = *i;
-
-    let prefix = terminated(
+fn char_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, CharLit<'a>> {
+    let ((prefix, _, content, is_closed), span) = (
         alt(('b'.value(Some(CharPrefix::Binary)), empty.value(None))),
         '\'',
-    )
-    .parse_next(i)?;
-
-    let content = opt(terminated(
         opt(take_escaped(none_of(['\\', '\'']), '\\', any)),
-        '\'',
-    ))
-    .parse_next(i)?;
+        opt('\''),
+    )
+        .with_taken()
+        .parse_next(i)?;
 
-    let Some(content) = content else {
+    if is_closed.is_none() {
         if let Some(prefix) = prefix {
             return cut_error!(
                 match prefix {
-                    CharPrefix::Binary => "unterminated byte constant",
+                    CharPrefix::Binary => "unterminated byte literal",
                 },
-                start,
+                span,
             );
         } else {
             return fail(i);
         }
-    };
+    }
+
     let content = match content.unwrap_or_default() {
-        "" => return cut_error!("empty character literal", start),
+        "" => {
+            return cut_error!(
+                match prefix {
+                    Some(CharPrefix::Binary) => "empty byte literal",
+                    None => "empty character literal",
+                },
+                span,
+            );
+        }
         content => content,
     };
 
-    let mut is = content;
-    let Ok(c) = Char::parse(&mut is) else {
-        return cut_error!("invalid character", start);
+    let mut content_i = content;
+    let Ok(c) = Char::parse(&mut content_i) else {
+        return cut_error!("invalid character", span);
     };
+    if !content_i.is_empty() {
+        let (c, s) = match prefix {
+            Some(CharPrefix::Binary) => ("byte", "binary string"),
+            None => ("character", "string"),
+        };
+        return cut_error!(
+            format!(
+                "cannot have multiple characters in a {c} literal, use `{}\"...\"` to write a {s}",
+                match prefix {
+                    Some(CharPrefix::Binary) => "b",
+                    None => "",
+                }
+            ),
+            span
+        );
+    }
 
     let (nb, max_value, err1, err2) = match c {
         Char::Literal | Char::Escaped => {
@@ -792,7 +799,7 @@ fn char_lit<'a>(i: &mut &'a str) -> ParseResult<'a, CharLit<'a>> {
                 Some(CharPrefix::Binary) => {
                     return cut_error!(
                         "cannot use unicode escape in byte string in byte literal",
-                        start,
+                        span,
                     );
                 }
                 None => (
@@ -807,10 +814,10 @@ fn char_lit<'a>(i: &mut &'a str) -> ParseResult<'a, CharLit<'a>> {
     };
 
     let Ok(nb) = u32::from_str_radix(nb, 16) else {
-        return cut_error!(err1, start);
+        return cut_error!(err1, span);
     };
     if nb > max_value {
-        return cut_error!(err2, start);
+        return cut_error!(err2, span);
     }
 
     Ok(CharLit { prefix, content })
@@ -830,11 +837,9 @@ enum Char<'a> {
 }
 
 impl<'a> Char<'a> {
-    fn parse(i: &mut &'a str) -> ParseResult<'a, Self> {
-        if i.chars().count() == 1 {
-            return any.value(Self::Literal).parse_next(i);
-        }
-        (
+    fn parse(i: &mut &'a str) -> ModalResult<Self, ()> {
+        let unescaped = none_of(('\\', '\'')).value(Self::Literal);
+        let escaped = preceded(
             '\\',
             alt((
                 'n'.value(Self::Escaped),
@@ -854,9 +859,8 @@ impl<'a> Char<'a> {
                 )
                     .map(|(_, s, _)| Self::UnicodeEscape(s)),
             )),
-        )
-            .map(|(_, ch)| ch)
-            .parse_next(i)
+        );
+        alt((unescaped, escaped)).parse_next(i)
     }
 }
 
@@ -867,10 +871,10 @@ pub enum PathOrIdentifier<'a> {
 }
 
 fn path_or_identifier<'a>(
-    i: &mut &'a str,
+    i: &mut InputStream<'a>,
     level: Level<'_>,
 ) -> ParseResult<'a, PathOrIdentifier<'a>> {
-    let start_i = *i;
+    let start_i = ***i;
     let root = ws(opt("::"));
     let tail = opt(repeat(
         1..,
@@ -927,11 +931,11 @@ struct State<'a, 'l> {
 }
 
 impl State<'_, '_> {
-    fn tag_block_start<'i>(&self, i: &mut &'i str) -> ParseResult<'i, ()> {
+    fn tag_block_start<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
         self.syntax.block_start.value(()).parse_next(i)
     }
 
-    fn tag_block_end<'i>(&self, i: &mut &'i str) -> ParseResult<'i, ()> {
+    fn tag_block_end<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
         let control = alt((
             self.syntax.block_end.value(None),
             peek(delimited('%', alt(('-', '~', '+')).map(Some), '}')),
@@ -945,7 +949,7 @@ impl State<'_, '_> {
                     control.escape_default(),
                     self.syntax.block_end.escape_default(),
                 ),
-                *i,
+                ***i,
             );
             Err(err.backtrack())
         } else {
@@ -953,19 +957,19 @@ impl State<'_, '_> {
         }
     }
 
-    fn tag_comment_start<'i>(&self, i: &mut &'i str) -> ParseResult<'i, ()> {
+    fn tag_comment_start<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
         self.syntax.comment_start.value(()).parse_next(i)
     }
 
-    fn tag_comment_end<'i>(&self, i: &mut &'i str) -> ParseResult<'i, ()> {
+    fn tag_comment_end<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
         self.syntax.comment_end.value(()).parse_next(i)
     }
 
-    fn tag_expr_start<'i>(&self, i: &mut &'i str) -> ParseResult<'i, ()> {
+    fn tag_expr_start<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
         self.syntax.expr_start.value(()).parse_next(i)
     }
 
-    fn tag_expr_end<'i>(&self, i: &mut &'i str) -> ParseResult<'i, ()> {
+    fn tag_expr_end<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
         self.syntax.expr_end.value(()).parse_next(i)
     }
 
@@ -1205,7 +1209,7 @@ impl LevelGuard<'_> {
     }
 }
 
-fn filter<'a>(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Filter<'a>> {
+fn filter<'a>(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, Filter<'a>> {
     preceded(
         ('|', not('|')),
         cut_err(|i: &mut _| Filter::parse(i, level)),
@@ -1466,13 +1470,13 @@ fn cut_context_err<'a, T>(gen_err: impl FnOnce() -> ErrorContext<'a>) -> ParseRe
 
 type HashSet<T> = std::collections::hash_set::HashSet<T, FxBuildHasher>;
 
-#[cfg(not(windows))]
 #[cfg(test)]
 mod test {
     use std::path::Path;
 
     use super::*;
 
+    #[cfg(not(windows))]
     #[test]
     fn test_strip_common() {
         // Full path is returned instead of empty when the entire path is in common.
@@ -1499,66 +1503,78 @@ mod test {
         assert_eq!(strip_common(&cwd, Path::new("/a/b/c")), "/a/b/c");
     }
 
+    fn parse_peek<'a, T>(
+        mut parser: impl ModalParser<InputStream<'a>, T, ErrorContext<'a>>,
+        input: &'a str,
+    ) -> ParseResult<'a, (&'a str, T)> {
+        let mut i = InputStream {
+            input: LocatingSlice::new(input),
+            state: (),
+        };
+        let value = parser.parse_next(&mut i)?;
+        Ok((**i, value))
+    }
+
     #[test]
     fn test_num_lit() {
         // Should fail.
-        assert!(num_lit.parse_peek(".").is_err());
+        assert!(parse_peek(num_lit, ".").is_err());
         // Should succeed.
         assert_eq!(
-            num_lit.parse_peek("1.2E-02").unwrap(),
+            parse_peek(num_lit, "1.2E-02").unwrap(),
             ("", Num::Float("1.2E-02", None))
         );
         assert_eq!(
-            num_lit.parse_peek("4e3").unwrap(),
+            parse_peek(num_lit, "4e3").unwrap(),
             ("", Num::Float("4e3", None)),
         );
         assert_eq!(
-            num_lit.parse_peek("4e+_3").unwrap(),
+            parse_peek(num_lit, "4e+_3").unwrap(),
             ("", Num::Float("4e+_3", None)),
         );
         // Not supported because Rust wants a number before the `.`.
-        assert!(num_lit.parse_peek(".1").is_err());
-        assert!(num_lit.parse_peek(".1E-02").is_err());
+        assert!(parse_peek(num_lit, ".1").is_err());
+        assert!(parse_peek(num_lit, ".1E-02").is_err());
         // A `_` directly after the `.` denotes a field.
         assert_eq!(
-            num_lit.parse_peek("1._0").unwrap(),
+            parse_peek(num_lit, "1._0").unwrap(),
             ("._0", Num::Int("1", None))
         );
         assert_eq!(
-            num_lit.parse_peek("1_.0").unwrap(),
+            parse_peek(num_lit, "1_.0").unwrap(),
             ("", Num::Float("1_.0", None))
         );
         // Not supported (voluntarily because of `1..` syntax).
         assert_eq!(
-            num_lit.parse_peek("1.").unwrap(),
+            parse_peek(num_lit, "1.").unwrap(),
             (".", Num::Int("1", None))
         );
         assert_eq!(
-            num_lit.parse_peek("1_.").unwrap(),
+            parse_peek(num_lit, "1_.").unwrap(),
             (".", Num::Int("1_", None))
         );
         assert_eq!(
-            num_lit.parse_peek("1_2.").unwrap(),
+            parse_peek(num_lit, "1_2.").unwrap(),
             (".", Num::Int("1_2", None))
         );
         // Numbers with suffixes
         assert_eq!(
-            num_lit.parse_peek("-1usize").unwrap(),
+            parse_peek(num_lit, "-1usize").unwrap(),
             ("", Num::Int("-1", Some(IntKind::Usize)))
         );
         assert_eq!(
-            num_lit.parse_peek("123_f32").unwrap(),
+            parse_peek(num_lit, "123_f32").unwrap(),
             ("", Num::Float("123_", Some(FloatKind::F32)))
         );
         assert_eq!(
-            num_lit.parse_peek("1_.2_e+_3_f64|into_isize").unwrap(),
+            parse_peek(num_lit, "1_.2_e+_3_f64|into_isize").unwrap(),
             (
                 "|into_isize",
                 Num::Float("1_.2_e+_3_", Some(FloatKind::F64))
             )
         );
         assert_eq!(
-            num_lit.parse_peek("4e3f128").unwrap(),
+            parse_peek(num_lit, "4e3f128").unwrap(),
             ("", Num::Float("4e3", Some(FloatKind::F128))),
         );
     }
@@ -1570,42 +1586,42 @@ mod test {
             content: s,
         };
 
-        assert_eq!(char_lit.parse_peek("'a'").unwrap(), ("", lit("a")));
-        assert_eq!(char_lit.parse_peek("'字'").unwrap(), ("", lit("字")));
+        assert_eq!(parse_peek(char_lit, "'a'").unwrap(), ("", lit("a")));
+        assert_eq!(parse_peek(char_lit, "'字'").unwrap(), ("", lit("字")));
 
         // Escaped single characters.
-        assert_eq!(char_lit.parse_peek("'\\\"'").unwrap(), ("", lit("\\\"")));
-        assert_eq!(char_lit.parse_peek("'\\''").unwrap(), ("", lit("\\'")));
-        assert_eq!(char_lit.parse_peek("'\\t'").unwrap(), ("", lit("\\t")));
-        assert_eq!(char_lit.parse_peek("'\\n'").unwrap(), ("", lit("\\n")));
-        assert_eq!(char_lit.parse_peek("'\\r'").unwrap(), ("", lit("\\r")));
-        assert_eq!(char_lit.parse_peek("'\\0'").unwrap(), ("", lit("\\0")));
+        assert_eq!(parse_peek(char_lit, "'\\\"'").unwrap(), ("", lit("\\\"")));
+        assert_eq!(parse_peek(char_lit, "'\\''").unwrap(), ("", lit("\\'")));
+        assert_eq!(parse_peek(char_lit, "'\\t'").unwrap(), ("", lit("\\t")));
+        assert_eq!(parse_peek(char_lit, "'\\n'").unwrap(), ("", lit("\\n")));
+        assert_eq!(parse_peek(char_lit, "'\\r'").unwrap(), ("", lit("\\r")));
+        assert_eq!(parse_peek(char_lit, "'\\0'").unwrap(), ("", lit("\\0")));
         // Escaped ascii characters (up to `0x7F`).
-        assert_eq!(char_lit.parse_peek("'\\x12'").unwrap(), ("", lit("\\x12")));
-        assert_eq!(char_lit.parse_peek("'\\x02'").unwrap(), ("", lit("\\x02")));
-        assert_eq!(char_lit.parse_peek("'\\x6a'").unwrap(), ("", lit("\\x6a")));
-        assert_eq!(char_lit.parse_peek("'\\x7F'").unwrap(), ("", lit("\\x7F")));
+        assert_eq!(parse_peek(char_lit, "'\\x12'").unwrap(), ("", lit("\\x12")));
+        assert_eq!(parse_peek(char_lit, "'\\x02'").unwrap(), ("", lit("\\x02")));
+        assert_eq!(parse_peek(char_lit, "'\\x6a'").unwrap(), ("", lit("\\x6a")));
+        assert_eq!(parse_peek(char_lit, "'\\x7F'").unwrap(), ("", lit("\\x7F")));
         // Escaped unicode characters (up to `0x10FFFF`).
         assert_eq!(
-            char_lit.parse_peek("'\\u{A}'").unwrap(),
+            parse_peek(char_lit, "'\\u{A}'").unwrap(),
             ("", lit("\\u{A}"))
         );
         assert_eq!(
-            char_lit.parse_peek("'\\u{10}'").unwrap(),
+            parse_peek(char_lit, "'\\u{10}'").unwrap(),
             ("", lit("\\u{10}"))
         );
         assert_eq!(
-            char_lit.parse_peek("'\\u{aa}'").unwrap(),
+            parse_peek(char_lit, "'\\u{aa}'").unwrap(),
             ("", lit("\\u{aa}"))
         );
         assert_eq!(
-            char_lit.parse_peek("'\\u{10FFFF}'").unwrap(),
+            parse_peek(char_lit, "'\\u{10FFFF}'").unwrap(),
             ("", lit("\\u{10FFFF}"))
         );
 
         // Check with `b` prefix.
         assert_eq!(
-            char_lit.parse_peek("b'a'").unwrap(),
+            parse_peek(char_lit, "b'a'").unwrap(),
             (
                 "",
                 crate::CharLit {
@@ -1616,20 +1632,20 @@ mod test {
         );
 
         // Should fail.
-        assert!(char_lit.parse_peek("''").is_err());
-        assert!(char_lit.parse_peek("'\\o'").is_err());
-        assert!(char_lit.parse_peek("'\\x'").is_err());
-        assert!(char_lit.parse_peek("'\\x1'").is_err());
-        assert!(char_lit.parse_peek("'\\x80'").is_err());
-        assert!(char_lit.parse_peek("'\\u'").is_err());
-        assert!(char_lit.parse_peek("'\\u{}'").is_err());
-        assert!(char_lit.parse_peek("'\\u{110000}'").is_err());
+        assert!(parse_peek(char_lit, "''").is_err());
+        assert!(parse_peek(char_lit, "'\\o'").is_err());
+        assert!(parse_peek(char_lit, "'\\x'").is_err());
+        assert!(parse_peek(char_lit, "'\\x1'").is_err());
+        assert!(parse_peek(char_lit, "'\\x80'").is_err());
+        assert!(parse_peek(char_lit, "'\\u'").is_err());
+        assert!(parse_peek(char_lit, "'\\u{}'").is_err());
+        assert!(parse_peek(char_lit, "'\\u{110000}'").is_err());
     }
 
     #[test]
     fn test_str_lit() {
         assert_eq!(
-            str_lit.parse_peek(r#"b"hello""#).unwrap(),
+            parse_peek(str_lit, r#"b"hello""#).unwrap(),
             (
                 "",
                 StrLit {
@@ -1643,7 +1659,7 @@ mod test {
             )
         );
         assert_eq!(
-            str_lit.parse_peek(r#"c"hello""#).unwrap(),
+            parse_peek(str_lit, r#"c"hello""#).unwrap(),
             (
                 "",
                 StrLit {
@@ -1656,7 +1672,7 @@ mod test {
                 }
             )
         );
-        assert!(str_lit.parse_peek(r#"d"hello""#).is_err());
+        assert!(parse_peek(str_lit, r#"d"hello""#).is_err());
     }
 
     #[test]

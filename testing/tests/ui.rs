@@ -18,13 +18,13 @@ fn ui() {
     };
 
     let target_crate_root = manifest_dir.join("../target/tests/trybuild/askama_testing");
-    if !target_crate_root.exists() {
-        if let Err(err) = std::fs::create_dir_all(&target_crate_root) {
-            panic!(
-                "failed to create folder `{}`: {err:?}",
-                target_crate_root.display()
-            );
-        }
+    if !target_crate_root.exists()
+        && let Err(err) = std::fs::create_dir_all(&target_crate_root)
+    {
+        panic!(
+            "failed to create folder `{}`: {err:?}",
+            target_crate_root.display()
+        );
     }
     let target_crate_root = target_crate_root.canonicalize().unwrap();
 
@@ -46,10 +46,10 @@ fn ui() {
 
     // soft-link toml configs
     for entry in manifest_dir.read_dir().unwrap().filter_map(Result::ok) {
-        if let Some(name) = entry.file_name().to_str() {
-            if name != "Cargo.toml" || !name.ends_with(".toml") {
-                symlink(name);
-            }
+        if let Some(name) = entry.file_name().to_str()
+            && (name != "Cargo.toml" || !name.ends_with(".toml"))
+        {
+            symlink(name);
         }
     }
 }

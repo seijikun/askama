@@ -1,6 +1,6 @@
 error: unknown node `fail`
- --> <source attribute>:2:6
-       " fail %}\n{% endif %}"
+ --> <source attribute>:2:7
+       "fail %}\n{% endif %}"
  --> tests/ui/askama-block.rs:5:1
   |
 5 | /// Some documentation

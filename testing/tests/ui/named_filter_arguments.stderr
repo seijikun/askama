@@ -15,24 +15,24 @@ error: named argument `plural` was passed more than once
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `pluralize` filter does not have an argument `pl`; its arguments are: ([singular], [plural])
- --> NamedButAlreadyPositional.txt:1:47
-       "(\"y\", pl = \"ies\") }}."
+ --> NamedButAlreadyPositional.txt:1:53
+       "pl = \"ies\") }}."
   --> tests/ui/named_filter_arguments.rs:23:14
    |
 23 |     source = r#"I have {{ count }} butterfl{{ count | pluralize("y", pl = "ies") }}."#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `pluralize` filter does not have an argument `sg`; its arguments are: ([singular], [plural])
- --> NoSuchNamedArgument.txt:1:47
-       "(\"y\", sg = \"ies\") }}."
+ --> NoSuchNamedArgument.txt:1:53
+       "sg = \"ies\") }}."
   --> tests/ui/named_filter_arguments.rs:32:14
    |
 32 |     source = r#"I have {{ count }} butterfl{{ count | pluralize("y", sg = "ies") }}."#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `uppercase` filter does not have any arguments
- --> NamedArgumentButNoArgumentExpected.txt:1:30
-       "(case = \"upper\") }}"
+ --> NamedArgumentButNoArgumentExpected.txt:1:31
+       "case = \"upper\") }}"
   --> tests/ui/named_filter_arguments.rs:41:14
    |
 41 |     source = r#"Scream: {{ message | uppercase(case = "upper") }}"#,
