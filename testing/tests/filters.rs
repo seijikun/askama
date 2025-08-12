@@ -453,7 +453,7 @@ fn test_linebreaks() {
 fn test_filesizeformat() {
     #[derive(Template)]
     #[template(
-        source = r#"{% if let Some(x) = s %}{{x|filesizeformat}}{% endif %}"#,
+        source = r#"{% if let Some(x) = s %}{{ x | filesizeformat }}{% endif %}"#,
         ext = "html"
     )]
     struct S {
@@ -461,6 +461,15 @@ fn test_filesizeformat() {
     }
 
     assert_eq!(S { s: Some(12) }.render().unwrap(), "12 B");
+}
+
+#[test]
+fn test_filesizeformat_with_precision() {
+    #[derive(Template)]
+    #[template(source = r#"{{ 1024 | filesizeformat(precision = 3) }}"#, ext = "html")]
+    struct FileSizeFormatPrecision {}
+
+    assert_eq!(FileSizeFormatPrecision {}.render().unwrap(), "1.024 kB");
 }
 
 #[test]

@@ -248,15 +248,27 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<'a, Box<Expr<'a>>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        let arg = no_arguments(ctx, "humansize", args)?;
-        let span = ctx.span_for_node(node);
-        let arg = self.visit_arg(ctx, arg, span)?;
+        const DEFAULT_PRECISION: &WithSpan<'_, &Expr<'_>> =
+            &WithSpan::new_without_span(&Expr::NumLit("2", Num::Int("2", Some(IntKind::U8))));
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "precision",
+                default_value: Some(DEFAULT_PRECISION),
+            },
+        ];
+
+        let [source, precision] = collect_filter_args(ctx, "humansize", node, args, ARGUMENTS)?;
+
+        let source = self.visit_arg(ctx, source, ctx.span_for_node(source.span()))?;
+        let precision = self.visit_arg(ctx, precision, ctx.span_for_node(precision.span()))?;
 
         // All filters return numbers, and any default formatted number is HTML safe.
-        quote_into!(buf, span, {
+        quote_into!(buf, ctx.span_for_node(node), {
             askama::filters::HtmlSafeOutput(
                 askama::filters::filesizeformat(
-                    askama::helpers::get_primitive_value(&(#arg)) as askama::helpers::core::primitive::f32
+                    askama::helpers::get_primitive_value(&(#source)) as askama::helpers::core::primitive::u128,
+                    askama::helpers::get_primitive_value(&(#precision)) as askama::helpers::core::primitive::u8
                 )?
             )
         });
