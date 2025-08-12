@@ -63,7 +63,9 @@ fn run_text(filter: Text<'_>) -> Result<(), askama::Error> {
         TextFilter::Urlencode => filters::urlencode(input)?.to_dev_null(),
         TextFilter::UrlencodeStrict => filters::urlencode_strict(input)?.to_dev_null(),
         TextFilter::Escape(escaper) => filters::escape(input, escaper)?.to_dev_null(),
-        TextFilter::Filesizeformat(size) => filters::filesizeformat(size)?.to_dev_null(),
+        TextFilter::Filesizeformat(size, precision) => {
+            filters::filesizeformat(size, precision)?.to_dev_null()
+        }
         TextFilter::Json => filters::json(input)?.to_dev_null(),
         TextFilter::JsonPretty(prefix) => filters::json_pretty(input, prefix)?.to_dev_null(),
     };
@@ -95,7 +97,9 @@ impl fmt::Display for Text<'_> {
             TextFilter::Urlencode => format!("urlencode({input:?})"),
             TextFilter::UrlencodeStrict => format!("urlencode_strict({input:?})"),
             TextFilter::Escape(e) => format!("escape({input:?}, {e})"),
-            TextFilter::Filesizeformat(size) => format!("filesizeformat({size:?})"),
+            TextFilter::Filesizeformat(size, precision) => {
+                format!("filesizeformat({size:?}, {precision:?})")
+            }
             TextFilter::Json => format!("json({input:?})"),
             TextFilter::JsonPretty(prefix) => format!("json_pretty({input:?}, {prefix})"),
         };
@@ -175,7 +179,7 @@ enum TextFilter<'a> {
     Urlencode,
     UrlencodeStrict,
     Escape(Escaper),
-    Filesizeformat(f32),
+    Filesizeformat(u128, u8),
     Json,
     JsonPretty(Prefix<'a>),
 }

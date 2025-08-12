@@ -226,12 +226,23 @@ Escape &lt;&gt;&amp;
 Returns adequate string representation (in KB, ..) of number of bytes:
 
 ```jinja
-{{ 1000 | filesizeformat }}
+{{ 1024 | filesizeformat }}
 ```
 
 Output:
 ```text
-1 KB
+1.02 KB
+```
+
+Control the resulting precision with the optional `precision` argument:
+
+```jinja
+{{ 1024 | filesizeformat(precision = 3) }}
+```
+
+Output:
+```text
+1.024 KB
 ```
 
 ### fmt
