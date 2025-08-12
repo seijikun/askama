@@ -786,7 +786,10 @@ impl<'a> Generator<'a, '_> {
                 quote_into!(buf, span, { #this #generics });
                 continue;
             }
-            buf.write_field(part, span);
+            if i != 0 || !part.is_empty() {
+                // Paths can start with `::`, meaning we can have an empty identifier first.
+                buf.write_field(part, span);
+            }
         }
     }
 
