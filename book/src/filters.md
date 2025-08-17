@@ -104,7 +104,7 @@ Output:
 ### default
 [#default]: #default
 
-```text
+```jinja,ignore
 {{ variable_or_expression | default(default_value) }}
 {{ variable_or_expression | default(default_value, [[boolean =] true]) }}
 ```
@@ -285,7 +285,7 @@ enabled by <code>"alloc"</code><br/>
 enabled by <code>"default"</code>
 </blockquote>
 
-```text
+```jinja,ignore
 {{ "format_string" | format([variables ...]) }}
 ```
 
@@ -468,7 +468,7 @@ hello
 ### `pluralize`
 [#pluralize]: #pluralize
 
-```text
+```jinja,ignore
 {{ integer | pluralize }}
 {{ integer | pluralize([singular = ""], [plural = "s"]) }}
 ```
