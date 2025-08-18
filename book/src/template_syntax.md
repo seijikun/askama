@@ -466,7 +466,33 @@ Loop over each item in an iterator. For example:
 <h1>Users</h1>
 <ul>
 {% for user in users %}
-  <li>{{ user.name|e }}</li>
+  <li>{{ user.name }}</li>
+{% endfor %}
+</ul>
+```
+
+You can filter items by adding an `if` condition:
+
+```jinja
+<h1>Users</h1>
+<ul>
+{% for user in users if user.is_activated %}
+  <li>{{ user.name }}</li>
+{% endfor %}
+</ul>
+```
+
+You can add an optional `{% else %}` block that is entered if the loop was never
+entered, either because the iterator was empty, or the filter condition was never
+match.
+
+```jinja
+<h1>Users</h1>
+<ul>
+{% for user in users %}
+  <li>{{ user.name }}</li>
+{% else %}
+  <li>No users</li>
 {% endfor %}
 </ul>
 ```
@@ -477,7 +503,6 @@ Inside for-loop blocks, some useful variables are accessible:
 * *loop.index0*: current loop iteration (starting from 0)
 * *loop.first*: whether this is the first iteration of the loop
 * *loop.last*: whether this is the last iteration of the loop
-
 
 ```jinja
 <h1>Users</h1>
